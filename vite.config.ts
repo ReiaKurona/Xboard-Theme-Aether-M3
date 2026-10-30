@@ -62,20 +62,20 @@ export default defineConfig({
       }
     }
   },
-  server: {
+  server: { //配置本地开发代理
     proxy: {
       '/api': {
-        target: 'https://next.rka.jp',
+        target: 'https://next.example.com',
         changeOrigin: true
       },
       '/komari-proxy': {
-        target: 'https://stat.rka.jp',
+        target: 'https://next.example.com',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/komari-proxy/, ''),
         headers: {
-          Referer: 'https://stat.rka.jp/',
-          Origin: 'https://stat.rka.jp'
+          Referer: 'https://next.example.com',
+          Origin: 'https://next.example.com'
         }
       }
     }
