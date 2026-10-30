@@ -1,0 +1,9 @@
+{
+    "name": "xboard-plugin/theme-api-adapter",
+    "description": "MessagePack Adapter for Xboard",
+    "type": "library",
+    "require": {
+        "php": ">=8.1",
+        "rybakit/msgpack": "^0.9"
+    }
+}

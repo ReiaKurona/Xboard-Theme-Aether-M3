@@ -1,0 +1,18 @@
+{
+    "name": "Theme API Adapter",
+    "code": "theme_api_adapter",
+    "version": "1.0.2",
+    "description": "为前端主题提供全局用户视角透明的 MessagePack 二进制传输加速",
+    "author": "Reia",
+    "require": {
+        "xboard": ">=1.0.0"
+    },
+    "config": {
+        "enable_acceleration": {
+            "type": "boolean",
+            "default": true,
+            "label": "启用二进制加速",
+            "description": "开启后将透明处理带有 application/msgpack 头的请求"
+        }
+    }
+}
