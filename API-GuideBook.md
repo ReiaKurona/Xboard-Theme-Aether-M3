@@ -13,6 +13,7 @@
   - [1.3 统一响应模型与错误处理](#13-统一响应模型与错误处理)
   - [1.4 不走标准包装的特殊接口清单](#14-不走标准包装的特殊接口清单)
   - [1.5 核心枚举与度量衡单位换算](#15-核心枚举与度量衡单位换算)
+  - [1.6. 主题如何挂载](#1.6.-主题如何挂载)
 - [2. Passport 认证模块 (无需登录)](#2-passport-认证模块-无需登录)
   - [2.1 获取站点公开配置](#21-获取站点公开配置)
   - [2.2 验证码机制与动态参数](#22-验证码机制与动态参数)
@@ -176,6 +177,48 @@
   `0`: 待支付、`1`: 开通中、`2`: 已取消、`3`: 已完成、`4`: 已折抵。
 - **工单状态枚举 (`ticket.status`)**：
   `0`: 处理中 (开启)、`1`: 已关闭；`reply_status`: `0` 待客服回复，`1` 客服已回复；`level`: `0` 低、`1` 中、`2` 高 (加急/提现)。
+
+###1.6. 主题如何挂载
+
+后端路由 `GET /` 渲染当前主题的 `dashboard.blade.php`，把站点配置注入为全局变量，你的前端从这里读取运行时配置。
+
+**主题目录结构**：
+
+```
+MyTheme/
+├── config.json            # 必须，含 name、version、configs（后台可配项）
+├── dashboard.blade.php    # 必须，入口模板
+└── assets/                # 你的构建产物（js/css/图片）
+```
+
+- 打包成 zip 上传（后台主题管理）。`config.json` 里 `name` 不能与系统主题 `Xboard`、`v2board` 同名；更新同名主题要求 `version` 更高。
+- 上传后主题放在 `storage/theme/{name}`，首次访问时复制到 `public/theme/{name}`，资源路径为 `/theme/{name}/assets/...`。
+- `config.json` 的 `configs` 数组定义后台可配置项（字段：`label`、`placeholder`、`field_name`、`field_type`、`select_options`、`default_value`），官方 Xboard 主题有 `theme_color`（select）、`background_url`（input）、`custom_html`（textarea）作为参考。
+
+**`dashboard.blade.php` 注入的变量**（官方主题写法，你照搬即可）：
+
+```html
+<script>
+  window.routerBase = "/";            // API 基础地址（请求 routerBase + 'api/v1/...'）
+  window.settings = {
+    title: '{{$title}}',               // 站点名
+    description: '{{$description}}',
+    assets_path: '/theme/{{$theme}}/assets',
+    theme: { color: '{{ $theme_config["theme_color"] ?? "default" }}' },
+    version: '{{$version}}',
+    background_url: '{{$theme_config["background_url"]}}',
+    logo: '{{$logo}}',
+    i18n: ['zh-CN','en-US','ja-JP','vi-VN','ko-KR','zh-TW','fa-IR']
+  }
+</script>
+<div id="app"></div>
+{!! $theme_config['custom_html'] !!}
+```
+
+- Blade 可用变量：`$title`、`$theme`、`$version`、`$description`、`$logo`、`$theme_config`（你在 `config.json` 里定义的配置项取值）。
+- 官方主题使用 hash 路由（`/#/login?verify=...&redirect=dashboard`），`token2Login` 的跳转也按这个格式拼，所以**你的路由最好也用 hash 模式**，否则邮件链接登录和快捷登录要自己改。
+- 本地开发时参考官方的 `env.example.js`：`window.routerBase = 'http://127.0.0.1:8000/'`，配合 CORS 可前后端分离调试。
+
 
 ---
 
