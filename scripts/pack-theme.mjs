@@ -35,10 +35,20 @@ const bladeTemplate = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>{{$title}}</title>
   
+  @php
+    try {
+      $swSrc = public_path('theme/' . ($theme ?? 'MD3-Theme') . '/assets/sw.js');
+      $swDst = public_path('sw.js');
+      if (file_exists($swSrc) && (!file_exists($swDst) || filemtime($swSrc) > filemtime($swDst))) {
+          @copy($swSrc, $swDst);
+      }
+    } catch (\\Throwable $e) {}
+  @endphp
+
   ${modulePreloadMatches.join('\n  ')}
 
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-  
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" /> 
+   
   <script>
     window.routerBase = "/";
     window.settings = {

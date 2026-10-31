@@ -68,14 +68,13 @@ const registerServiceWorker = async () => {
     return
   }
 
-  const { scriptUrl, scope } = getSwConfig()
   try {
-    const registration = await navigator.serviceWorker.register(scriptUrl, { scope })
+    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
     isSwRegistered.value = true
-    console.log('✅ Service Worker 成功挂载，管辖作用域:', registration.scope)
+    console.log('✅ Service Worker 成功挂载全站根域，管辖作用域:', registration.scope)
   } catch (err: any) {
     isSwRegistered.value = false
-    console.warn('⚠️ Service Worker 注册失败，将启用保底模式:', err)
+    console.warn('⚠️ Service Worker 根路径注册失败:', err)
   }
 }
 
@@ -329,9 +328,20 @@ const handleMediaPreview = async (resource: any) => {
     }
 
     // 检查 Service Worker 是否就绪可用
-    const sw = navigator.serviceWorker?.controller
+    // 异步确认 Service Worker 控制器完全就绪
+    let sw = navigator.serviceWorker?.controller
+    if (!sw && 'serviceWorker' in navigator) {
+      try {
+        const reg = (await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_, reject) => setTimeout(() => reject('timeout'), 1200))
+        ])) as ServiceWorkerRegistration
+        sw = navigator.serviceWorker.controller || reg?.active || null
+      } catch {}
+    }
+
     if (!sw) {
-      // 🌟 触发极端情况友好提示弹窗，并准备自动降级
+      // 只有在彻底不可用时才弹窗提示并准备内存降级
       pendingPreviewResource.value = resource
       isSwWarningOpen.value = true
       return
@@ -349,12 +359,11 @@ const handleMediaPreview = async (resource: any) => {
     const channel = new MessageChannel()
     channel.port1.onmessage = (event) => {
       if (event.data.success) {
-        const { scope } = getSwConfig()
-        // 🌟 保证虚拟串流地址处于 SW 的合法作用域管辖内
+        // 🌟 虚拟流地址直接对齐全站根作用域
         mediaModal.value = {
           open: true,
           type: getMediaType(resource.name),
-          url: `${scope}e2ee-stream/${streamId}`,
+          url: `/e2ee-stream/${streamId}`,
           name: resource.name,
           resource
         }
@@ -589,13 +598,14 @@ const renderedFolderMd = computed(() => {
       @close="isDownloading = false"
     />
 
-    <!-- 媒体播放器 Modal -->
+    <!-- 挂载媒体播放器 Modal -->
     <MediaPlayerModal
       v-if="mediaModal.open"
       :type="mediaModal.type"
       :url="mediaModal.url"
       :resource="mediaModal.resource"
       :base-url="baseUrl"
+      :current-folder-resources="resources"
       @close="mediaModal.open = false"
       @download="executeDownloadPipeline(mediaModal.resource, false)"
     />

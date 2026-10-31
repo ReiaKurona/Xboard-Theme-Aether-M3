@@ -20,5 +20,24 @@ class Plugin extends AbstractPlugin
             $config['theme_api_accelerated'] = $this->getConfig('enable_acceleration', true);
             return $config;
         });
+
+        // 🌟 新增：Service Worker 根作用域双重响应通道
+        app('router')->get('/sw.js', function () {
+            $candidates = [
+                public_path('sw.js'),
+                public_path('theme/MD3-Theme/assets/sw.js'),
+                storage_path('theme/MD3-Theme/assets/sw.js')
+            ];
+            foreach ($candidates as $file) {
+                if (file_exists($file)) {
+                    return response(file_get_contents($file), 200, [
+                        'Content-Type' => 'application/javascript; charset=utf-8',
+                        'Service-Worker-Allowed' => '/',
+                        'Cache-Control' => 'no-cache, no-store, must-revalidate'
+                    ]);
+                }
+            }
+            return response('// sw not found', 404);
+        });
     }
 }
