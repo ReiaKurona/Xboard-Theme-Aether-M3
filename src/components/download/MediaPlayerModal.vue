@@ -5,7 +5,11 @@ import 'xgplayer/dist/index.min.css'
 import Danmu from 'xgplayer/es/plugins/danmu'
 import 'xgplayer/es/plugins/danmu/index.css'
 import { importEncryptionKey, decryptApiPayload } from '../../utils/crypto'
+import ExternalPlayerLauncher from './ExternalPlayerLauncher.vue'
 import '@material/web/button/filled-button.js'
+import WebRtcBroadcaster from './WebRtcBroadcaster.vue'
+
+const webRtcBroadcasterRef = ref<any>(null)
 
 const props = defineProps<{
   type: string
@@ -15,7 +19,7 @@ const props = defineProps<{
   currentFolderResources?: any[]
 }>()
 
-const emit = defineEmits(['close', 'download'])
+const emit = defineEmits(['close', 'download', 'switchVideo'])
 
 let playerInstance: any = null
 const codecError = ref(false)
@@ -31,8 +35,9 @@ const isModeMenuOpen = ref(false)
 const isSizeMenuOpen = ref(false)
 const isSubtitleMenuOpen = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const externalLauncherRef = ref<any>(null)
 
-// 🌟 1. 超广角 YouTube 氛围灯系统
+// 🌟 1. YouTube 同款全屏无死角自适应氛围灯 (屏幕有多大盖多大)
 const ambientCanvasRef = ref<HTMLCanvasElement | null>(null)
 const isAmbientEnabled = ref(true)
 let ambientCtx: CanvasRenderingContext2D | null = null
@@ -53,11 +58,12 @@ const startAmbientLoop = () => {
       !playerInstance.video.paused &&
       !playerInstance.video.ended
     ) {
-      if (time - lastDrawTime > 70) {
+      if (time - lastDrawTime > 65) {
         try {
           const v = playerInstance.video
           const vw = v.videoWidth || 1920
           const vh = v.videoHeight || 1080
+          // 裁切 15% 黑边
           const cropX = vw * 0.15
           const cropY = vh * 0.15
           const cropW = vw * 0.70
@@ -72,9 +78,9 @@ const startAmbientLoop = () => {
   ambientAnimId = requestAnimationFrame(drawFrame)
 }
 
-// =========================================================
-// 🌟 2. 毫秒级自研时序互锁字幕引擎
-// =========================================================
+// ==========================================
+// 🌟 2. 字幕引擎与时间轴微调
+// ==========================================
 export interface RobustCue {
   start: number
   end: number
@@ -153,14 +159,8 @@ const parseSrtOrVttToCues = (rawContent: string): RobustCue[] => {
       end = start + 2.0
     }
 
-    cues.push({
-      start,
-      end,
-      text: textLines.join('\n'),
-      isZeroDuration
-    })
+    cues.push({ start, end, text: textLines.join('\n'), isZeroDuration })
   }
-
   return cues.sort((a, b) => a.start - b.start)
 }
 
@@ -203,7 +203,6 @@ const parseAssToCues = (rawContent: string): RobustCue[] => {
       }
     }
   }
-
   return cues.sort((a, b) => a.start - b.start)
 }
 
@@ -240,7 +239,7 @@ const extractZipEntries = async (zipBuf: ArrayBuffer): Promise<Array<{ filename:
           const stream = new Response(fileData).body!.pipeThrough(ds)
           const ab = await new Response(stream).arrayBuffer()
           uncompressedBytes = new Uint8Array(ab)
-        } catch (e) {
+        } catch {
           uncompressedBytes = new Uint8Array(0)
         }
       } else {
@@ -257,7 +256,6 @@ const extractZipEntries = async (zipBuf: ArrayBuffer): Promise<Array<{ filename:
   return results
 }
 
-// 🌟 核心时序同步器
 const syncSubtitlesWithPlayer = () => {
   if (activeTrackId.value === 'off') {
     activeSubtitleTexts.value = []
@@ -303,7 +301,6 @@ const selectSubtitleTrack = (trackId: string) => {
   syncSubtitlesWithPlayer()
 }
 
-// 自动扫描加载伴生 ZIP 字幕包
 const scanAndLoadCompanionZip = async () => {
   if (!props.resource?.name) return
   isAutoScanningSub.value = true
@@ -420,7 +417,7 @@ const handleLocalSubtitleLoad = async (event: any) => {
   isSubtitleMenuOpen.value = false
 }
 
-// 🌟 音画时钟硬同步守护器 (丢帧追赶，绝不慢放)
+// 🌟 3. 音画时钟硬同步守护器
 let syncWatchdogTimer: any = null
 let lastWallClockTime = 0
 let lastVideoMediaTime = 0
@@ -466,13 +463,19 @@ const stopSyncWatchdog = () => {
   }
 }
 
+// ==========================================
+// 🌟 4. 实时弹幕列表与 WebSocket 通信
+// ==========================================
+const danmakuList = ref<any[]>([])
 let wsClient: WebSocket | null = null
 
 const fetchDanmaku = async () => {
   try {
     const res = await fetch(`${props.baseUrl}/api/resources/${props.resource.id}/danmaku`)
     const data = await res.json()
-    return data.success ? data.comments : []
+    const list = data.success ? data.comments : []
+    danmakuList.value = list.sort((a: any, b: any) => a.start - b.start)
+    return list
   } catch {
     return []
   }
@@ -540,6 +543,7 @@ const initPlayer = async () => {
         const parsed = JSON.parse(event.data)
         if (parsed.type === 'danmaku_receive' && parsed.resourceId === props.resource.id && playerInstance) {
           playerInstance.danmu.sendComment(parsed.comment)
+          danmakuList.value.push(parsed.comment)
         }
       } catch {}
     }
@@ -567,6 +571,7 @@ const sendCustomDanmu = async () => {
   }
 
   playerInstance.danmu.sendComment(newComment)
+  danmakuList.value.push(newComment)
 
   if (wsClient && wsClient.readyState === WebSocket.OPEN) {
     wsClient.send(JSON.stringify({
@@ -580,22 +585,52 @@ const sendCustomDanmu = async () => {
   danmuText.value = ''
 }
 
+// 🌟 点击弹幕列表项：视频瞬间跳转至对应时间戳！
+const seekToDanmaku = (ms: number) => {
+  if (playerInstance) {
+    playerInstance.currentTime = Math.max(0, ms / 1000)
+    if (playerInstance.video?.paused) playerInstance.play()
+  }
+}
+
+const formatDanmuTime = (ms: number) => {
+  const totalSec = Math.floor(ms / 1000)
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// 🌟 5. 过滤同文件夹下的其他视频文件 (排除 zip、doc 等)
+const playlistVideos = computed(() => {
+  const list = props.currentFolderResources || []
+  return list.filter((r: any) => {
+    return r.type === 'file' && /\.(mp4|mkv|webm)$/i.test(r.name)
+  })
+})
+
 const modeConfig = {
-  scroll: { label: '滚动', icon: 'view_stream', desc: '右向左划过' },
-  top: { label: '顶部', icon: 'vertical_align_top', desc: '居中停 5 秒' },
-  bottom: { label: '底部', icon: 'vertical_align_bottom', desc: '居中停 5 秒' }
+  scroll: { label: '滚动', icon: 'view_stream' },
+  top: { label: '顶部', icon: 'vertical_align_top' },
+  bottom: { label: '底部', icon: 'vertical_align_bottom' }
 }
 
 const sizeConfig = {
-  '16px': { label: '小号', text: '16px' },
-  '20px': { label: '标准', text: '20px' },
-  '26px': { label: '大字', text: '26px' }
+  '16px': { label: '小号' },
+  '20px': { label: '标准' },
+  '26px': { label: '大字' }
 }
 
 const closeAllPopups = () => {
   isModeMenuOpen.value = false
   isSizeMenuOpen.value = false
   isSubtitleMenuOpen.value = false
+}
+
+// 暂停网页播放（配合外链播放器）
+const pauseWebPlayer = () => {
+  if (playerInstance) {
+    playerInstance.pause()
+  }
 }
 
 watch(() => props.url, (u) => { if (u) initPlayer() })
@@ -613,24 +648,48 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="fixed inset-0 z-50 flex flex-col justify-between bg-black/92 backdrop-blur-3xl p-2 sm:p-6 select-none overflow-hidden"
+    class="fixed inset-0 z-50 flex flex-col justify-between bg-black/92 backdrop-blur-3xl select-none overflow-hidden"
     @click="closeAllPopups"
   >
     <input ref="fileInputRef" type="file" accept=".vtt,.srt,.ass,.ssa" class="hidden" @change="handleLocalSubtitleLoad" />
 
-    <!-- 顶栏标题与操作 -->
-    <div class="flex items-center justify-between pb-2 shrink-0 z-20">
-      <div class="flex items-center gap-2 max-w-[65vw]">
+    <!-- 🌟 全屏自适应 YouTube 氛围灯 (100vw x 100vh 无死角覆盖，彻底消灭黑边) -->
+    <canvas
+      v-show="isAmbientEnabled"
+      ref="ambientCanvasRef"
+      class="youtube-fullscreen-ambient pointer-events-none"
+    ></canvas>
+
+    <!-- 顶栏标题栏 -->
+    <div class="flex items-center justify-between p-3 sm:px-6 sm:py-3 shrink-0 z-30 border-b border-white/5">
+      <div class="flex items-center gap-2.5 max-w-[55vw] truncate">
         <span class="text-sm sm:text-base font-bold text-white truncate">{{ resource?.name }}</span>
         <span
           v-if="parsedTracks.length > 0"
-          class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 shrink-0 font-mono"
+          class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 shrink-0 font-mono hidden sm:inline"
         >
           {{ parsedTracks.length }} 轨字幕
         </span>
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- 🌟 PC 专属外链播放模组 -->
+        <ExternalPlayerLauncher
+          ref="externalLauncherRef"
+          :stream-url="url"
+          :video-name="resource?.name || 'video'"
+          @pause-video="pauseWebPlayer"
+          class="hidden sm:inline-block"
+        />
+
+        <!-- 🌟 WebRTC 局域网广播与独立桌面悬浮窗模组 -->
+        <WebRtcBroadcaster
+          ref="webRtcBroadcasterRef"
+          :video-element="playerInstance?.video || null"
+          :resource="resource"
+          :base-url="baseUrl"
+        />
+
         <button
           @click="$emit('download')"
           class="px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-1 cursor-pointer"
@@ -638,6 +697,7 @@ onUnmounted(() => {
           <span class="material-symbols-outlined text-sm">download</span>
           <span class="hidden sm:inline">下载</span>
         </button>
+
         <button
           @click="$emit('close')"
           class="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
@@ -647,31 +707,21 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 🌟 核心播放视窗容器 (超大范围 YouTube 氛围灯) -->
+    <!-- 🌟 核心视窗：纯正 YouTube 响应式双端排版 -->
     <div
-      class="flex-1 w-full max-w-5xl mx-auto flex flex-col justify-center items-center overflow-visible min-h-0 relative"
+      class="flex-1 w-full max-w-[1440px] mx-auto p-2 sm:p-6 overflow-y-auto z-20 flex flex-col lg:flex-row gap-6 min-h-0"
       :style="{ '--sub-font-size': subtitleFontSize }"
     >
-      <div v-if="type === 'image'" class="h-full flex items-center justify-center z-10">
-        <img :src="url" class="max-h-[75vh] max-w-full rounded-2xl object-contain shadow-2xl" />
-      </div>
-
-      <div v-else class="w-full flex flex-col relative z-10">
-        <!-- 🌟 YouTube 氛围灯 (180% 扩展，自适应吞没黑边) -->
-        <canvas
-          v-show="isAmbientEnabled"
-          ref="ambientCanvasRef"
-          class="youtube-super-ambient pointer-events-none"
-        ></canvas>
-
-        <!-- 🌟 播放器主体卡片：彻底去除黑色背景遮挡，改用微阴影，使氛围光自然透到底栏 -->
-        <div class="w-full flex flex-col rounded-[24px] sm:rounded-[28px] overflow-hidden bg-transparent shadow-[0_12px_48px_rgba(0,0,0,0.35)] relative z-10">
-          
-          <!-- 视频播放层 -->
+      <!-- ========================================================
+           左栏（手机端置顶）：播放器主体 + 弹幕发射台 + 弹幕讨论流
+           ======================================================== -->
+      <div class="flex-1 flex flex-col gap-4 min-w-0">
+        <!-- 播放器主体卡片 -->
+        <div class="w-full flex flex-col rounded-[24px] sm:rounded-[28px] overflow-hidden bg-transparent shadow-[0_12px_48px_rgba(0,0,0,0.35)] relative">
+          <!-- 视频层 -->
           <div class="w-full aspect-video bg-black relative overflow-hidden">
-            <!-- 🌟 核心修复 1：将字幕渲染层直接放入 #xgplayer-core 内部！无论普通还是全屏，100% 正常显示！ -->
             <div id="xgplayer-core" class="w-full h-full relative">
-              <!-- 🌟 核心修复 2：打开字幕菜单时，自动避让隐藏字幕，绝不再挡住字幕选单！ -->
+              <!-- 自研字幕层 (全屏下同样完美显示) -->
               <div
                 v-if="activeSubtitleTexts.length > 0 && !isSubtitleMenuOpen"
                 class="subtitle-overlay-layer pointer-events-none absolute inset-x-0 bottom-12 sm:bottom-14 flex flex-col items-center justify-end z-25 px-4 pb-2"
@@ -687,43 +737,39 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- 🌟 核心修复 3：弹幕栏不透明度调为 40% (背后的氛围光芒完全透入) + 手机自适应折叠布局 -->
+          <!-- 🌟 弹幕发射栏：降至 40% 不透明度 + 高斯模糊 (氛围流光真实漫透) -->
           <div class="p-3 sm:p-3.5 ambient-translucent-bar flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 border-t border-white/5 relative z-10" @click.stop>
-            
-            <!-- 输入行 + 移动端发送按钮 -->
+            <!-- 输入框行 -->
             <div class="flex items-center gap-2 w-full flex-1">
               <input
                 v-model="danmuText"
                 @keyup.enter="sendCustomDanmu"
                 placeholder="发条弹幕参与讨论吧..."
-                class="flex-1 w-full bg-[var(--md-sys-color-surface-container-high)]/80 text-xs px-4 py-2 sm:py-2.5 rounded-full outline-none text-[var(--md-sys-color-on-surface)]"
+                class="flex-1 w-full bg-white/10 text-xs px-4 py-2 sm:py-2.5 rounded-full outline-none text-white placeholder:text-white/40"
               />
               <md-filled-button @click="sendCustomDanmu" class="h-8 sm:hidden shrink-0">
                 <span class="material-symbols-outlined text-xs" slot="icon">send</span>
               </md-filled-button>
             </div>
 
-            <!-- 控制工具集 (手机端自适应折叠流排版) -->
+            <!-- 控制工具集 (手机端弹性折叠) -->
             <div class="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 shrink-0">
-              
-              <!-- 1. 字幕选单 -->
+              <!-- 字幕选单 (手机端居中防越界) -->
               <div class="relative">
                 <button
                   type="button"
                   @click="isSubtitleMenuOpen = !isSubtitleMenuOpen; isModeMenuOpen = false; isSizeMenuOpen = false"
                   class="px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                  :class="activeTrackId !== 'off' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-[var(--md-sys-color-surface-container-high)] opacity-70'"
+                  :class="activeTrackId !== 'off' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/10 text-white/70'"
                 >
                   <span class="material-symbols-outlined text-base">closed_caption</span>
                   <span class="text-[11px]">{{ activeTrackId === 'off' ? '字幕关' : '字幕开' }}</span>
                 </button>
 
-                <!-- 选单向上展开并赋予最高层级 z-50 -->
                 <div
                   v-if="isSubtitleMenuOpen"
                   class="popover-menu absolute bottom-12 right-0 w-64 p-3 rounded-2xl bg-[var(--md-sys-color-surface-container-high)] shadow-2xl border border-white/10 flex flex-col gap-2.5 z-50 backdrop-blur-2xl"
                 >
-                  <!-- 时间轴同步微调 -->
                   <div class="flex flex-col gap-1.5 pb-2 border-b border-white/10">
                     <div class="flex items-center justify-between text-[10px] font-bold">
                       <span class="opacity-60">时间轴同步微调</span>
@@ -740,9 +786,8 @@ onUnmounted(() => {
                     </div>
                   </div>
 
-                  <!-- 字号调节 -->
                   <div class="flex flex-col gap-1.5 pb-2 border-b border-white/10">
-                    <span class="text-[10px] font-bold opacity-60">字幕大小调节</span>
+                    <span class="text-[10px] font-bold opacity-60">字幕大小</span>
                     <div class="grid grid-cols-4 gap-1">
                       <button
                         v-for="s in [
@@ -754,19 +799,18 @@ onUnmounted(() => {
                         :key="s.val"
                         @click="setSubtitleFontSize(s.val)"
                         class="py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                        :class="subtitleFontSize === s.val ? 'bg-[var(--md-sys-color-primary)] text-white' : 'bg-white/5 opacity-70 hover:opacity-100'"
+                        :class="subtitleFontSize === s.val ? 'bg-[var(--md-sys-color-primary)] text-white' : 'bg-white/5 opacity-70'"
                       >
                         {{ s.label }}
                       </button>
                     </div>
                   </div>
 
-                  <!-- 轨道列表 -->
                   <div class="flex flex-col gap-1 max-h-40 overflow-y-auto pr-0.5">
                     <button
                       @click="selectSubtitleTrack('off')"
-                      class="px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between cursor-pointer"
-                      :class="activeTrackId === 'off' ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70 hover:opacity-100'"
+                      class="px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between"
+                      :class="activeTrackId === 'off' ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70'"
                     >
                       <span>关闭字幕</span>
                       <span v-if="activeTrackId === 'off'" class="material-symbols-outlined text-xs">check</span>
@@ -776,15 +820,14 @@ onUnmounted(() => {
                       v-for="st in parsedTracks"
                       :key="st.id"
                       @click="selectSubtitleTrack(st.id)"
-                      class="px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between truncate cursor-pointer"
-                      :class="activeTrackId === st.id ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70 hover:opacity-100'"
+                      class="px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between truncate"
+                      :class="activeTrackId === st.id ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70'"
                     >
                       <span class="truncate">{{ st.label }}</span>
                       <span v-if="activeTrackId === st.id" class="material-symbols-outlined text-xs shrink-0">check</span>
                     </button>
                   </div>
 
-                  <!-- 手动导入入口 -->
                   <div class="pt-1 border-t border-white/10">
                     <button
                       @click="triggerImportSubtitle"
@@ -797,12 +840,12 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- 2. 模式 (三选一) -->
+              <!-- 模式 (三选一) -->
               <div class="relative">
                 <button
                   type="button"
                   @click="isModeMenuOpen = !isModeMenuOpen; isSizeMenuOpen = false; isSubtitleMenuOpen = false"
-                  class="px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--md-sys-color-surface-container-high)] opacity-85 hover:opacity-100 transition-all flex items-center gap-1 cursor-pointer"
+                  class="px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white/80 transition-all flex items-center gap-1 cursor-pointer"
                 >
                   <span class="material-symbols-outlined text-base">{{ modeConfig[danmuMode].icon }}</span>
                   <span class="hidden sm:inline">{{ modeConfig[danmuMode].label }}</span>
@@ -816,8 +859,8 @@ onUnmounted(() => {
                     v-for="(cfg, key) in modeConfig"
                     :key="key"
                     @click="danmuMode = key as any; isModeMenuOpen = false"
-                    class="px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between cursor-pointer"
-                    :class="danmuMode === key ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70 hover:opacity-100'"
+                    class="px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between"
+                    :class="danmuMode === key ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70'"
                   >
                     <div class="flex items-center gap-2">
                       <span class="material-symbols-outlined text-sm">{{ cfg.icon }}</span>
@@ -827,12 +870,12 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- 3. 字号 -->
+              <!-- 字号 -->
               <div class="relative">
                 <button
                   type="button"
                   @click="isSizeMenuOpen = !isSizeMenuOpen; isModeMenuOpen = false; isSubtitleMenuOpen = false"
-                  class="px-2 sm:px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--md-sys-color-surface-container-high)] opacity-85 hover:opacity-100 transition-all flex items-center gap-1 cursor-pointer"
+                  class="px-2 sm:px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white/80 transition-all flex items-center gap-1 cursor-pointer"
                 >
                   <span class="material-symbols-outlined text-base">format_size</span>
                   <span class="hidden sm:inline">{{ sizeConfig[danmuSize].label }}</span>
@@ -846,8 +889,8 @@ onUnmounted(() => {
                     v-for="(cfg, key) in sizeConfig"
                     :key="key"
                     @click="danmuSize = key as any; isSizeMenuOpen = false"
-                    class="px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between cursor-pointer"
-                    :class="danmuSize === key ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70 hover:opacity-100'"
+                    class="px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between"
+                    :class="danmuSize === key ? 'bg-[var(--md-sys-color-primary)] text-white' : 'opacity-70'"
                   >
                     <span>{{ cfg.label }}</span>
                     <span v-if="danmuSize === key" class="material-symbols-outlined text-xs">check</span>
@@ -855,18 +898,17 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- 4. 氛围灯 -->
+              <!-- 氛围灯切换 -->
               <button
                 type="button"
                 @click="isAmbientEnabled = !isAmbientEnabled"
                 class="w-7 sm:w-8 h-7 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer"
-                :class="isAmbientEnabled ? 'bg-amber-500/20 text-amber-400' : 'bg-white/5 opacity-40 hover:opacity-100 text-white'"
-                title="切换氛围灯"
+                :class="isAmbientEnabled ? 'bg-amber-500/20 text-amber-400' : 'bg-white/5 opacity-40 text-white'"
               >
                 <span class="material-symbols-outlined text-base">flare</span>
               </button>
 
-              <!-- 5. 调色盘 (移动端自动精简) -->
+              <!-- 调色盘 -->
               <div class="flex items-center gap-1 px-1">
                 <span
                   v-for="c in DANMU_COLORS.slice(0, 5)"
@@ -878,12 +920,84 @@ onUnmounted(() => {
                 ></span>
               </div>
 
-              <!-- PC端发送按钮 -->
               <md-filled-button @click="sendCustomDanmu" class="h-8 sm:h-9 hidden sm:inline-flex">
                 <span class="material-symbols-outlined text-xs" slot="icon">send</span>
                 发送
               </md-filled-button>
             </div>
+          </div>
+        </div>
+
+        <!-- 🌟 YouTube 风格：实时弹幕列表 (复用原有加载器数据，点击跳转秒数) -->
+        <div class="p-4 sm:p-5 rounded-3xl bg-[var(--md-sys-color-surface-container)]/80 backdrop-blur-xl border border-white/5 shadow-sm flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-base text-[var(--md-sys-color-primary)]">chat</span>
+              <span class="font-extrabold text-xs sm:text-sm text-[var(--md-sys-color-on-surface)]">
+                实时弹幕记录 ({{ danmakuList.length }})
+              </span>
+            </div>
+            <span class="text-[10px] opacity-40">点击时间戳快速跳转</span>
+          </div>
+
+          <div v-if="danmakuList.length === 0" class="py-6 text-center opacity-40 text-xs">
+            暂无历史弹幕，发一条开启讨论吧
+          </div>
+
+          <div v-else class="flex flex-col gap-2 max-h-60 sm:max-h-80 overflow-y-auto pr-1">
+            <div
+              v-for="d in danmakuList"
+              :key="d.id"
+              class="p-2.5 rounded-2xl bg-[var(--md-sys-color-surface-container-high)]/60 hover:bg-[var(--md-sys-color-surface-container-high)] transition-all flex items-center justify-between text-xs group cursor-pointer"
+              @click="seekToDanmaku(d.start)"
+            >
+              <div class="flex items-center gap-2.5 truncate mr-2">
+                <span class="px-2 py-0.5 rounded-lg bg-black/20 text-[var(--md-sys-color-primary)] font-mono font-bold text-[10px]">
+                  {{ formatDanmuTime(d.start) }}
+                </span>
+                <span class="truncate text-[var(--md-sys-color-on-surface)]" :style="{ color: d.style?.color }">
+                  {{ d.txt }}
+                </span>
+              </div>
+              <span class="material-symbols-outlined text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                play_arrow
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================
+           右栏（手机端下方）：当前目录同类视频列表 (自动过滤非视频)
+           ======================================================== -->
+      <div class="w-full lg:w-80 shrink-0 flex flex-col gap-3">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold uppercase tracking-wider text-[var(--md-sys-color-primary)] flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">video_library</span>
+            <span>合辑 · 目录视频 ({{ playlistVideos.length }})</span>
+          </span>
+        </div>
+
+        <div class="flex flex-col gap-2.5 max-h-[calc(100vh-140px)] overflow-y-auto pr-1">
+          <div
+            v-for="v in playlistVideos"
+            :key="v.id"
+            @click="v.id !== resource?.id && $emit('switchVideo', v)"
+            class="p-3.5 rounded-2xl transition-all cursor-pointer flex items-center justify-between gap-3 shadow-sm border"
+            :class="v.id === resource?.id
+              ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] border-transparent font-bold'
+              : 'bg-[var(--md-sys-color-surface-container)] hover:bg-[var(--md-sys-color-surface-container-high)] border-black/5 dark:border-transparent opacity-80'"
+          >
+            <div class="flex items-center gap-3 truncate">
+              <span class="material-symbols-outlined text-lg shrink-0">
+                {{ v.id === resource?.id ? 'play_circle' : 'movie' }}
+              </span>
+              <span class="text-xs truncate">{{ v.name }}</span>
+            </div>
+
+            <span v-if="v.id === resource?.id" class="text-[10px] font-bold shrink-0 opacity-70">
+              播放中
+            </span>
           </div>
         </div>
       </div>
@@ -896,51 +1010,60 @@ onUnmounted(() => {
   --xgplayer-theme-color: var(--md-sys-color-primary) !important;
 }
 
-/* 🌟 移动端控制栏等比微缩适配 */
-@media (max-width: 640px) {
-  :deep(.xgplayer .xgplayer-controls) {
-    height: 40px !important;
-    padding: 0 6px !important;
-  }
-  :deep(.xgplayer .xg-icon) {
-    width: 28px !important;
-    height: 28px !important;
-  }
-  :deep(.xgplayer .xg-time) {
-    font-size: 11px !important;
-  }
-}
-
-/* 🌟 YouTube 氛围灯 (180% 扩展) */
-.youtube-super-ambient {
-  position: absolute;
-  top: -35%;
-  left: -40%;
-  width: 180%;
-  height: 170%;
-  filter: blur(110px) saturate(260%) brightness(1.2);
-  opacity: 0.95;
+/* 🌟 YouTube 氛围灯 (屏幕有多大铺多大，无边际覆盖) */
+.youtube-fullscreen-ambient {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  filter: blur(110px) saturate(240%) brightness(1.15) !important;
+  opacity: 0.65;
   pointer-events: none;
-  z-index: 1;
-  border-radius: 80px;
-  transition: opacity 0.4s ease;
+  z-index: 0;
+  transition: opacity 0.5s ease;
 }
 
-/* 🌟 核心修复：弹幕栏 40% 不透明度 + 高斯模糊，氛围流光完整透入 */
+/* 🌟 弹幕栏 40% 不透明度 (高斯模糊漫透氛围灯) */
 .ambient-translucent-bar {
   background: rgba(18, 20, 24, 0.40) !important;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
 
-/* 齿轮面板安全防遮挡 */
+/* 移动端控制条微缩 */
+@media (max-width: 640px) {
+  :deep(.xgplayer .xgplayer-controls) {
+    height: 38px !important;
+    padding: 0 4px !important;
+  }
+  :deep(.xgplayer .xg-icon) {
+    width: 26px !important;
+    height: 26px !important;
+  }
+  :deep(.xgplayer .xg-time) {
+    font-size: 10px !important;
+  }
+
+  /* 🌟 核心：手机端弹窗菜单自动居中为底部抽屉，绝不出界 */
+  .popover-menu {
+    position: fixed !important;
+    bottom: 84px !important;
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    max-width: none !important;
+    z-index: 99 !important;
+  }
+}
+
+/* 齿轮面板防遮挡 */
 :deep(.xgplayer .xgplayer-danmu-panel) {
   position: absolute !important;
-  bottom: 78px !important;
-  right: 18px !important;
-  max-height: calc(100% - 100px) !important;
+  bottom: 74px !important;
+  right: 16px !important;
+  max-height: calc(100% - 90px) !important;
   overflow-y: auto !important;
-  border-radius: 24px !important;
+  border-radius: 20px !important;
   background: rgba(18, 20, 24, 0.96) !important;
   backdrop-filter: blur(25px) !important;
   -webkit-backdrop-filter: blur(25px) !important;
@@ -955,7 +1078,7 @@ onUnmounted(() => {
   accent-color: var(--md-sys-color-primary) !important;
 }
 
-/* 🌟 自研字幕渲染层 (背景完全透明 + 深灰描边 + 投影) */
+/* 字幕渲染层 (透明底 + 深灰描边 + 投影) */
 .custom-subtitle-text {
   background: transparent !important;
   background-color: transparent !important;

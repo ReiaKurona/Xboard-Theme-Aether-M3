@@ -594,12 +594,19 @@ const renderedFolderMd = computed(() => {
     <!-- 并发分块下载进度 Overlay -->
     <DownloadOverlay
       v-if="isDownloading && !mediaModal.open"
+      :type="mediaModal.type"
+      :url="mediaModal.url"
+      :resource="mediaModal.resource"
+      :base-url="baseUrl"
+      :current-folder-resources="resources"
       :status="downloadStatus"
       :percent="downloadPercent"
       :downloaded-chunks="downloadedChunksCount"
       :decrypted-chunks="decryptedChunksCount"
       :total-chunks="totalChunksCount"
       @close="isDownloading = false"
+      @download="executeDownloadPipeline(mediaModal.resource, false)"
+      @switch-video="handleMediaPreview($event)"
     />
 
     <!-- 挂载媒体播放器 Modal -->
