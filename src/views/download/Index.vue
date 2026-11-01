@@ -237,7 +237,11 @@ const executeDownloadPipeline = async (resource: any, isPreview: boolean = false
       while (true) {
         const i = nextChunkIndex++
         if (i >= totalChunksCount.value) break
-        const chunkRes = await fetch(urls[i])
+        //加入 referrerPolicy: 'no-referrer' 彻底抹除来源，并加 no-store 杜绝写盘
+        const chunkRes = await fetch(urls[i], {
+          referrerPolicy: 'no-referrer',
+          cache: 'no-store'
+        })
         if (!chunkRes.ok) throw new Error(`碎片 ${i} 拉取失败`)
         const reader = chunkRes.body!.getReader()
         const chunks = []

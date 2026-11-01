@@ -32,6 +32,7 @@ const bladeTemplate = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>{{$title}}</title>
   
@@ -47,8 +48,72 @@ const bladeTemplate = `<!DOCTYPE html>
 
   ${modulePreloadMatches.join('\n  ')}
 
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" /> 
+<!-- 🌟 核心安全防线：强效 Cache 缓存 + 匿名沙盒中继加载器 -->
+  @if(!empty($theme_config['custom_icon_url']))
+    @if(str_ends_with(trim($theme_config['custom_icon_url']), '.css'))
+      <link rel="stylesheet" href="{{ trim($theme_config['custom_icon_url']) }}" referrerpolicy="no-referrer" />
+    @else
+      <script>
+        (async function() {
+          var fontUrl = {!! json_encode(trim($theme_config['custom_icon_url'])) !!};
+          if (!fontUrl) return;
+
+          var CACHE_NAME = 'xboard-theme-assets-v1';
+
+          try {
+            var cache = await caches.open(CACHE_NAME);
+            var cachedRes = await cache.match(fontUrl);
+            
+            // 🌟 如果浏览器本地已经存过，直接 0ms 内存渲染，流量开销为 0！
+            if (cachedRes) {
+              var buf = await cachedRes.arrayBuffer();
+              var font = new FontFace('Material Symbols Outlined', buf);
+              var loadedFont = await font.load();
+              document.fonts.add(loadedFont);
+              return;
+            }
+          } catch (e) {}
+
+          // 缓存未命中：建立微型沙盒匿名下载
+          var sandboxFrame = document.createElement('iframe');
+          sandboxFrame.style.display = 'none';
+          sandboxFrame.sandbox = 'allow-scripts';
+
+          window.addEventListener('message', function onFontMsg(e) {
+            if (e.data && e.data.type === 'ANON_FONT_SUCCESS') {
+              window.removeEventListener('message', onFontMsg);
+              try {
+                var buf = e.data.buffer;
+                var font = new FontFace('Material Symbols Outlined', buf);
+                font.load().then(function(loadedFont) {
+                  document.fonts.add(loadedFont);
+                  sandboxFrame.remove();
+                  
+                  // 🌟 写盘固化：持久化存入 Cache Storage，跨重启永久保留
+                  caches.open(CACHE_NAME).then(function(cache) {
+                    cache.put(fontUrl, new Response(buf, { headers: { 'Content-Type': 'font/woff2', 'Cache-Control': 'max-age=31536000' } }));
+                  });
+                });
+              } catch(err) {}
+            }
+          });
+
+          sandboxFrame.srcdoc = '<!DOCTYPE html><html><head><meta name="referrer" content="no-referrer"></head><body><script>' +
+            'fetch(' + JSON.stringify(fontUrl) + ', { referrerPolicy: "no-referrer" })' +
+            '.then(function(r){ return r.arrayBuffer(); })' +
+            '.then(function(buf){ window.parent.postMessage({ type: "ANON_FONT_SUCCESS", buffer: buf }, "*", [buf]); })' +
+            '.catch(function(){ window.parent.postMessage({ type: "ANON_FONT_FAIL" }, "*"); });' +
+            '<\\/script></body></html>';
+
+          document.head.appendChild(sandboxFrame);
+        })();
+      </script>
+    @endif
+  @else
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  @endif
    
+  <!-- Xboard 全局运行时配置注入 -->
   <script>
     window.routerBase = "/";
     window.settings = {
@@ -64,7 +129,8 @@ const bladeTemplate = `<!DOCTYPE html>
       download_center_url: {!! json_encode($theme_config['download_center_url'] ?? 'https://install.example.com') !!},
       activity_float_enabled: {!! json_encode(($theme_config['activity_float_enabled'] ?? '1') === '1') !!},
       activity_custom_code: {!! json_encode($theme_config['activity_custom_code'] ?? '') !!},
-    }
+      custom_icon_url: {!! json_encode($theme_config['custom_icon_url'] ?? '') !!},
+    };
   </script>
 
   ${cssMatches.join('\n  ')}

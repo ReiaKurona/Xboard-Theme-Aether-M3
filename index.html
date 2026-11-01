@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Xboard M3 Theme</title>
 
@@ -13,16 +14,95 @@
         description: 'Material Design 3 Theme for Xboard',
         custom_html: '',
         komari_enabled: true, // 本地开启调试 Komari
-        komari_url: 'https://stat.rka.jp',        // 可填你的测试探针地址
-        download_center_url: 'https://install.reia.fans',// 可填你的测试下载中心地址
+        komari_url: 'https://stat.example.com',        // 可填你的测试探针地址
+        download_center_url: 'https://install.example.com',// 可填你的测试下载中心地址
         activity_float_enabled: true,
-        activity_custom_code: '````\n<div style="padding: 16px; text-align: center;"><h3 style="color: #38bdf8; font-weight: 800; margin: 0 0 6px;">🎮 玩游戏领流量限时狂欢</h3><p style="font-size: 12px; opacity: 0.8; margin: 0 0 12px;">参与小游戏每日可免费抽取 10GB~50GB 高速流量！</p><button style="padding: 8px 18px; border-radius: 9999px; background: #38bdf8; color: #000; font-weight: bold; border: none; cursor: pointer;">立即参与</button></div>\n````\n````\n<div style="padding: 16px; text-align: center;"><h3 style="color: #f472b6; font-weight: 800; margin: 0 0 6px;">🎁 新用户充值返现福利</h3><p style="font-size: 12px; opacity: 0.8; margin: 0 0 12px;">单笔充值满 100 元立送 20 元账户余额，多充多送！</p><button style="padding: 8px 18px; border-radius: 9999px; background: #f472b6; color: #fff; font-weight: bold; border: none; cursor: pointer;">查看细则</button></div>\n````'
-      
+        activity_custom_code: '````\n<div style="padding: 16px; text-align: center;"><h3 style="color: #38bdf8; font-weight: 800; margin: 0 0 6px;">🎮 玩游戏领流量限时狂欢</h3><p style="font-size: 12px; opacity: 0.8; margin: 0 0 12px;">参与小游戏每日可免费抽取 10GB~50GB 高速流量！</p><button style="padding: 8px 18px; border-radius: 9999px; background: #38bdf8; color: #000; font-weight: bold; border: none; cursor: pointer;">立即参与</button></div>\n````\n````\n<div style="padding: 16px; text-align: center;"><h3 style="color: #f472b6; font-weight: 800; margin: 0 0 6px;">🎁 新用户充值返现福利</h3><p style="font-size: 12px; opacity: 0.8; margin: 0 0 12px;">单笔充值满 100 元立送 20 元账户余额，多充多送！</p><button style="padding: 8px 18px; border-radius: 9999px; background: #f472b6; color: #fff; font-weight: bold; border: none; cursor: pointer;">查看细则</button></div>\n````',
+        // 🌟 本地测试：填你的腾讯云OSS链接测试，留空 '' 则走官方源
+        custom_icon_url: '' 
       };
-    </script>
 
-    <!-- Google Material Symbols 字体图标 -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+      // 🌟 强效缓存 + 匿名中继引擎
+      (async function() {
+        var fontUrl = (window.settings && window.settings.custom_icon_url) ? window.settings.custom_icon_url.trim() : '';
+        
+        if (!fontUrl) {
+          var defaultLink = document.createElement('link');
+          defaultLink.rel = 'stylesheet';
+          defaultLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200';
+          document.head.appendChild(defaultLink);
+          return;
+        }
+
+        if (fontUrl.endsWith('.css')) {
+          var link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = fontUrl;
+          link.referrerPolicy = 'no-referrer';
+          document.head.appendChild(link);
+          return;
+        }
+
+        var CACHE_NAME = 'xboard-theme-assets-v1';
+
+        try {
+          // 🌟 智能探测：如果处于开发模式且按了 F5/Ctrl+F5，主动清空缓存以绕过
+          var isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          var navEntries = performance.getEntriesByType("navigation");
+          var isReload = navEntries.length > 0 && navEntries[0].type === 'reload';
+          if (isLocalDev && isReload) {
+            await caches.delete(CACHE_NAME);
+            console.log('[Dev] 已清空字体缓存，强制回源');
+          }
+
+          var cache = await caches.open(CACHE_NAME);
+          var cachedRes = await cache.match(fontUrl);
+          
+          if (cachedRes) {
+            var buf = await cachedRes.arrayBuffer();
+            var font = new FontFace('Material Symbols Outlined', buf);
+            var loadedFont = await font.load();
+            document.fonts.add(loadedFont);
+            console.log('✅ 命中本地缓存，0 流量消耗！');
+            return;
+          }
+        } catch (e) {}
+
+        // 未命中缓存，启动沙盒去下载
+        var sandboxFrame = document.createElement('iframe');
+        sandboxFrame.style.display = 'none';
+        sandboxFrame.sandbox = 'allow-scripts';
+
+        window.addEventListener('message', function onFontMsg(e) {
+          if (e.data && e.data.type === 'ANON_FONT_SUCCESS') {
+            window.removeEventListener('message', onFontMsg);
+            try {
+              var buf = e.data.buffer;
+              var font = new FontFace('Material Symbols Outlined', buf);
+              font.load().then(function(loadedFont) {
+                document.fonts.add(loadedFont);
+                sandboxFrame.remove();
+                
+                // 下载完成后，异步写入本地高速缓存供下次直接使用
+                caches.open(CACHE_NAME).then(function(cache) {
+                  cache.put(fontUrl, new Response(buf, { headers: { 'Content-Type': 'font/woff2', 'Cache-Control': 'max-age=31536000' } }));
+                });
+              });
+            } catch(err) {}
+          }
+        });
+
+        // 移除了内部强制的 cache: 'reload'
+        sandboxFrame.srcdoc = '<!DOCTYPE html><html><head><meta name="referrer" content="no-referrer"></head><body><script>' +
+          'fetch(' + JSON.stringify(fontUrl) + ', { referrerPolicy: "no-referrer" })' +
+          '.then(function(r){ return r.arrayBuffer(); })' +
+          '.then(function(buf){ window.parent.postMessage({ type: "ANON_FONT_SUCCESS", buffer: buf }, "*", [buf]); })' +
+          '.catch(function(){ window.parent.postMessage({ type: "ANON_FONT_FAIL" }, "*"); });' +
+          '<\/script></body></html>';
+
+        document.head.appendChild(sandboxFrame);
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

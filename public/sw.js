@@ -165,6 +165,7 @@ async function fetchAndDecryptSingleChunk(streamId, chunkIdx, manifest) {
         const res = await fetch(url, {
           signal: controller.signal,
           cache: 'reload',
+          referrerPolicy: 'no-referrer',
           headers: {
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache'

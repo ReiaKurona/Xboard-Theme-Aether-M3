@@ -1,6 +1,6 @@
 {
   "name": "MD3-Theme",
-  "version": "1.2.1",
+  "version": "1.2.4",
   "author": "Reia",
   "description": "基于 Google Material Design 3 Expressive 设计语言的现代化主题",
   "configs": [
@@ -60,6 +60,13 @@
   "placeholder": "使用四个反引号 ```` 包裹每个独立活动的代码块(在代码起始前一个 ```` ，结束时一个 ```` ；包裹一个活动的代码块以区分活动卡片。例子： ```html\n<h1>我的活动</h1>\n``` ；若不需要自定义代码请留空",
   "field_name": "activity_custom_code",
   "field_type": "textarea",
+  "default_value": ""
+},
+{
+  "label": "自定义MD图标库 / 字体地址 (可选)",
+  "placeholder": "解决官方源加载慢导致图标错乱问题，留空默认走官方源。可填腾讯云OSS等woff2直链或各种开源镜像",
+  "field_name": "custom_icon_url",
+  "field_type": "input",
   "default_value": ""
 }
   ]
