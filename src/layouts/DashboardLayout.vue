@@ -6,6 +6,7 @@ import { useConfigStore } from '../stores/config'
 import GlobalFooterInjector from '../components/common/GlobalFooterInjector.vue'
 import UserAccountPopover from '../components/common/UserAccountPopover.vue'
 import ClientDownloadModal from '../components/common/ClientDownloadModal.vue'
+import DynamicIslandMusic from '../components/common/DynamicIslandMusic.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -164,24 +165,24 @@ const handleBack = () => {
         isMobile ? 'pl-0' : (isSidebarCollapsed ? 'pl-[96px]' : 'pl-[272px]')
       ]"
     >
-      <div class="max-w-[1440px] w-full mx-auto px-4 md:px-8 flex items-center justify-between">
+      <!-- 🌟 修改后：items-start 顶部对齐，中间向下展开时左右绝不下移 -->
+      <div class="max-w-[1440px] w-full mx-auto px-4 md:px-8 flex items-start justify-between">
         
-        <!-- 左侧：返回胶囊 (严格根据 isDark 切换深浅液态材质，彻底告别暗色发白) -->
-        <!-- 左侧区域：非首页显示返回按钮，首页显示【下载客户端】液态胶囊 -->
-<div class="flex items-center min-w-[52px]">
-  <!-- 首页展示：点击直接在新分页打开下载中心 -->
-  <button
-    v-if="isHome"
-    @click="openDownloadCenter"
-    class="pointer-events-auto h-11 px-3.5 rounded-full flex items-center gap-1.5 liquid-glass-capsule transition-all active:scale-95 group cursor-pointer shadow-lg"
-    :class="isDark ? 'top-capsule-dark' : 'top-capsule-light'"
-    title="在新分页打开专属软件库"
-  >
-    <span class="material-symbols-outlined text-lg text-[var(--md-sys-color-primary)]">
-      download
-    </span>
-    <span class="text-xs font-bold hidden sm:inline">下载客户端</span>
-  </button>
+        <!-- 🌟 左侧区域：锁定 h-11 并在内部垂直居中，钉在顶行 -->
+        <div class="flex items-center min-w-[52px] h-11">
+          <!-- 首页展示：客户端下载中心 -->
+          <button
+            v-if="isHome"
+            @click="openDownloadCenter"
+            class="pointer-events-auto h-11 px-3.5 rounded-full flex items-center gap-1.5 liquid-glass-capsule transition-all active:scale-95 group cursor-pointer shadow-lg"
+            :class="isDark ? 'top-capsule-dark' : 'top-capsule-light'"
+            title="下载官方推荐客户端"
+          >
+            <span class="material-symbols-outlined text-lg text-[var(--md-sys-color-primary)]">
+              download
+            </span>
+            <span class="text-xs font-bold hidden sm:inline">下载客户端</span>
+          </button>
 
           <!-- 子页面展示：返回上一级 -->
           <button
@@ -198,32 +199,17 @@ const handleBack = () => {
           </button>
         </div>
 
-        <!-- 中间：液态玻璃名称岛 -->
-        <div class="pointer-events-auto flex items-center justify-center">
-          <Transition name="fade-spring" mode="out-in">
-            <!-- 仪表盘首页：纯文字带质感阴影 -->
-            <div v-if="isHome" :key="'home'" class="flex items-center">
-              <span class="text-xl md:text-2xl font-black tracking-tight text-[var(--md-sys-color-on-surface)] drop-shadow-md select-none">
-                {{ currentRouteTitle }}
-              </span>
-            </div>
-
-            <!-- 子页面：液态玻璃岛 -->
-            <div
-              v-else
-              :key="'subpage'"
-              class="h-11 px-6 rounded-full flex items-center justify-center shadow-lg select-none transition-all"
-              :class="isDark ? 'top-capsule-dark' : 'top-capsule-light'"
-            >
-              <span class="text-sm md:text-base font-black tracking-tight">
-                {{ currentRouteTitle }}
-              </span>
-            </div>
-          </Transition>
+        <!-- 🌟 中间区域：顶部对齐，向下自然舒展大岛 -->
+        <div class="pointer-events-auto flex items-start justify-center">
+          <DynamicIslandMusic
+            :current-title="currentRouteTitle"
+            :is-home="isHome"
+            :is-dark="isDark"
+          />
         </div>
 
-        <!-- 右侧：聚合控制胶囊 (深浅切换 + 头像) -->
-        <div class="pointer-events-auto min-w-[52px] flex justify-end">
+        <!-- 🌟 右侧区域：锁定 h-11 并在内部居中，绝对不下移 -->
+        <div class="pointer-events-auto min-w-[52px] flex justify-end h-11 items-center">
           <div
             class="h-11 px-2.5 rounded-full flex items-center gap-2 shadow-lg transition-all"
             :class="isDark ? 'top-capsule-dark' : 'top-capsule-light'"

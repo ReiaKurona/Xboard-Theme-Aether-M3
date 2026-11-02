@@ -7,7 +7,7 @@ import 'xgplayer/es/plugins/danmu/index.css'
 import { importEncryptionKey, decryptApiPayload } from '../../utils/crypto'
 import ExternalPlayerLauncher from './ExternalPlayerLauncher.vue'
 import '@material/web/button/filled-button.js'
-import WebRtcBroadcaster from './WebRtcBroadcaster.vue'
+
 
 const webRtcBroadcasterRef = ref<any>(null)
 
@@ -682,13 +682,7 @@ onUnmounted(() => {
           class="hidden sm:inline-block"
         />
 
-        <!-- 🌟 WebRTC 局域网广播与独立桌面悬浮窗模组 -->
-        <WebRtcBroadcaster
-          ref="webRtcBroadcasterRef"
-          :video-element="playerInstance?.video || null"
-          :resource="resource"
-          :base-url="baseUrl"
-        />
+        
 
         <button
           @click="$emit('download')"

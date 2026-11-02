@@ -17,6 +17,8 @@ export interface StoredAccount {
   sub_token?: string
   avatar_url?: string
 }
+
+const avatarLoadFailed = ref(false)
 const isGiftCardModalOpen = ref(false)
 const router = useRouter()
 const userStore = useUserStore()
@@ -245,13 +247,19 @@ onUnmounted(() => {
       @mouseleave="isHovered = false"
       @click.stop="isOpen = !isOpen"
     >
+      <!-- 正常加载头像 -->
       <img
-        v-if="userStore.userInfo?.avatar_url"
+        v-if="userStore.userInfo?.avatar_url && !avatarLoadFailed"
         :src="userStore.userInfo.avatar_url"
+        @error="avatarLoadFailed = true"
         class="w-9 h-9 rounded-full object-cover transition-transform active:scale-95"
       />
-      <div v-else class="w-9 h-9 rounded-full bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] flex items-center justify-center font-bold text-xs">
-        {{ nickname.slice(0, 1).toUpperCase() }}
+      <!-- 失败时自动展示首字母占位圆圈，绝不展示浏览器丑陋的裂开图标 -->
+      <div 
+        v-else 
+        class="w-9 h-9 rounded-full bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] flex items-center justify-center font-bold text-xs transition-transform active:scale-95"
+      >
+        {{ (userStore.userInfo?.email || 'U').charAt(0).toUpperCase() }}
       </div>
 
       <!-- 悬停提示卡 -->

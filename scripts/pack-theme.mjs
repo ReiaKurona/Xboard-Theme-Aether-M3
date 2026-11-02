@@ -43,6 +43,12 @@ const bladeTemplate = `<!DOCTYPE html>
       if (file_exists($swSrc) && (!file_exists($swDst) || filemtime($swSrc) > filemtime($swDst))) {
           @copy($swSrc, $swDst);
       }
+      
+      $favSrc = public_path('theme/' . ($theme ?? 'MD3-Theme') . '/assets/favicon.svg');
+      $favDst = public_path('favicon.ico');
+      if (file_exists($favSrc) && !file_exists($favDst)) {
+          @copy($favSrc, $favDst);
+      }
     } catch (\\Throwable $e) {}
   @endphp
 
