@@ -70,9 +70,39 @@ const getAudioMimeType = (filename: string): string => {
   return map[ext] || 'audio/mpeg'
 }
 
+
 // =========================================================
-// 🌟 1. 扩充至 6 源并发无阻塞刮削引擎 (CORS 免疫 + 全网兜底)
+// 🌟 1. 扩充至 6 源并发无阻塞刮削引擎 (优先纯歌名，搜不到再加作者)
 // =========================================================
+
+
+const cleanString = (str: string) => {
+  if (!str) return ''
+  return str
+    .replace(/[（(][^）)]*[）)]/g, '') // 剥离中文（）和英文()括号及内容 (如 (TV Size), （现场版）)
+    .replace(/[【\[][^】\]]*[】\]]/g, '') // 剥离中文【】和英文[]中括号
+    .replace(/feat\.?\s+.*/i, '')        // 剥离 feat 合作后缀
+    .replace(/ft\.?\s+.*/i, '')          // 剥离 ft 后缀
+    .replace(/[-_]/g, ' ')               // 连字符转空格
+    .replace(/\s+/g, ' ')                // 合并多余连续空格
+    .trim()
+}
+
+// 过滤掉无意义的歌手名
+const cleanArtist = (artistStr: string) => {
+  if (!artistStr) return ''
+  // 切割多作者（支持逗号、斜杠、顿号、& 等常见分隔符）
+  const firstArtist = artistStr.split(/[,/、&|]/)[0]
+  const cleaned = cleanString(firstArtist)
+
+  // 过滤无效作者名
+  const invalidArtists = ['unknown', 'various artists', '群星', '未知', '未知艺术家', 'unknown artist']
+  if (invalidArtists.includes(cleaned.toLowerCase())) {
+    return ''
+  }
+  return cleaned
+}
+
 const parseLrcText = (lrcStr: string): LyricLine[] => {
   if (!lrcStr) return []
   const result: LyricLine[] = []
@@ -90,59 +120,111 @@ const parseLrcText = (lrcStr: string): LyricLine[] => {
 const scrapeTrackMetadataAndLyrics = async (track: MusicTrack) => {
   if (track.coverUrl && track.lyrics.length > 0) return
   isScraping.value = true
-  const searchQuery = `${track.title} ${track.artist}`.replace(/unknown|未知/gi, '').trim()
+
+  // 1. 提取最干净的检索词
+  const titleOnly = cleanString(track.title)
+  const artistOnly = cleanArtist(track.artist)
+  
+  // 🌟 主检索词：默认纯歌名
+  const primaryQuery = titleOnly
+  // 🌟 兜底检索词：搜不到时，拼接上主唱歌手
+  const fallbackQuery = artistOnly ? `${titleOnly} ${artistOnly}`.trim() : ''
+
+  // 辅助请求器：【默认只搜歌名】->【若失败且有作者，再尝试带作者】
+  const fetchWithCascade = async (fetcher: (q: string) => Promise<boolean>) => {
+    // 第一次尝试：纯歌名（成功率最高，不受脏歌手名干扰）
+    let success = await fetcher(primaryQuery)
+    
+    // 第二次尝试：如果纯歌名没找到，且存在有效作者，才带上作者重新查
+    if (!success && fallbackQuery && fallbackQuery !== primaryQuery) {
+      success = await fetcher(fallbackQuery)
+    }
+    return success
+  }
 
   try {
-    // 源 1: LRCLIB (全球开源歌词首选)
-    const lrcP = fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`).then(r => r.json()).then(list => {
-      if (list[0]) {
-        if (list[0].syncedLyrics && track.lyrics.length === 0) track.lyrics = parseLrcText(list[0].syncedLyrics)
-        if (list[0].artistName && track.artist === '未知歌手') track.artist = list[0].artistName
-        if (list[0].trackName) track.title = list[0].trackName
-      }
-    }).catch(() => {})
+    // 🌟 源 1：LRCLIB 开放 API（逐行时间轴歌词）
+    const lrcPromise = fetchWithCascade(async (q) => {
+      try {
+        const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`)
+        const list = await res.json()
+        if (Array.isArray(list) && list.length > 0) {
+          const best = list[0]
+          if (best.syncedLyrics && track.lyrics.length === 0) {
+            track.lyrics = parseLrcText(best.syncedLyrics)
+            return true
+          } else if (best.plainLyrics && track.lyrics.length === 0) {
+            track.lyrics = best.plainLyrics.split('\n').filter(Boolean).map((t: string, i: number) => ({ time: i * 4, text: t }))
+            return true
+          }
+        }
+      } catch (e) { /* 忽略单个源错误 */ }
+      return false
+    })
 
-    // 源 2: iTunes API (600x600 超清封面首选)
-    const itunesP = fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&media=music&entity=song&limit=1`).then(r => r.json()).then(data => {
-      if (data.results[0]?.artworkUrl100 && !track.coverUrl) {
-        track.coverUrl = data.results[0].artworkUrl100.replace('100x100bb', '600x600bb')
-      }
-    }).catch(() => {})
+    // 🌟 源 2：Apple iTunes API（600x600 超清官方专辑封面）
+    const itunesPromise = fetchWithCascade(async (q) => {
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&country=JP&limit=1`)
+        const data = await res.json()
+        if (data.results && data.results.length > 0) {
+          const item = data.results[0]
+          if (item.artworkUrl100 && !track.coverUrl) {
+            track.coverUrl = item.artworkUrl100.replace('100x100bb', '600x600bb')
+            return true
+          }
+        }
+      } catch (e) { /* 忽略错误 */ }
+      return false
+    })
 
-    // 源 3: Deezer Open API (跨国封面与元数据)
-    const deezerP = fetch(`https://api.deezer.com/search?q=${encodeURIComponent(searchQuery)}&limit=1`).then(r => r.json()).then(data => {
-      if (data.data && data.data[0]?.album?.cover_xl && !track.coverUrl) {
-        track.coverUrl = data.data[0].album.cover_xl
-      }
-    }).catch(() => {})
+    // 🌟 源 3：Deezer Open API (跨国备用高清封面)
+    const deezerPromise = fetchWithCascade(async (q) => {
+      try {
+        const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=1`)
+        const data = await res.json()
+        if (data.data && data.data.length > 0 && !track.coverUrl) {
+          track.coverUrl = data.data[0].album?.cover_xl || data.data[0].album?.cover_big || ''
+          return true
+        }
+      } catch (e) { /* 忽略错误 */ }
+      return false
+    })
 
-    // 源 4: Meting (网易云/QQ 镜像，华语兜底)
-    const metingP = fetch(`https://api.injahow.cn/meting/?type=search&keyword=${encodeURIComponent(searchQuery)}`).then(r => r.json()).then(async list => {
-      const first = list[0]
-      if (first?.pic && !track.coverUrl) track.coverUrl = first.pic
-      if (first?.id && track.lyrics.length === 0) {
-        const lrcRes = await fetch(`https://api.injahow.cn/meting/?type=lrc&id=${first.id}`).then(r => r.json())
-        if (lrcRes?.lyric) track.lyrics = parseLrcText(lrcRes.lyric)
-      }
-    }).catch(() => {})
+    // 🌟 源 4：Meting 公共镜像 (网易云/QQ 聚合兜底)
+    const metingPromise = fetchWithCascade(async (q) => {
+      try {
+        const res = await fetch(`https://api.injahow.cn/meting/?type=search&keyword=${encodeURIComponent(q)}`)
+        const list = await res.json()
+        if (Array.isArray(list) && list.length > 0) {
+          const first = list[0]
+          if (first?.pic && !track.coverUrl) track.coverUrl = first.pic
+          if (first?.id && track.lyrics.length === 0) {
+            const lrcRes = await fetch(`https://api.injahow.cn/meting/?type=lrc&id=${first.id}`).then(r => r.json())
+            if (lrcRes?.lyric) track.lyrics = parseLrcText(lrcRes.lyric)
+          }
+          return true
+        }
+      } catch (e) { /* 忽略错误 */ }
+      return false
+    })
 
-    // 源 5: UOMG API (网易云直连)
-    const uomgP = fetch(`https://api.uomg.com/api/search/netease?words=${encodeURIComponent(searchQuery)}`).then(r => r.json()).then(data => {
-      if (data.code === 1 && data.data?.[0]?.picurl && !track.coverUrl) {
-        track.coverUrl = data.data[0].picurl
-      }
-    }).catch(() => {})
+    // 🌟 源 5：UOMG API (网易云直连备用)
+    const uomgPromise = fetchWithCascade(async (q) => {
+      try {
+        const res = await fetch(`https://api.uomg.com/api/search/netease?words=${encodeURIComponent(q)}`)
+        const data = await res.json()
+        if (data.code === 1 && data.data?.[0]?.picurl && !track.coverUrl) {
+          track.coverUrl = data.data[0].picurl
+          return true
+        }
+      } catch (e) { /* 忽略错误 */ }
+      return false
+    })
 
-    // 源 6: MusicBrainz (维基数据兜底)
-    const mbP = fetch(`https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(searchQuery)}&fmt=json&limit=1`).then(r => r.json()).then(data => {
-      if (data.recordings[0]?.['artist-credit']?.[0]?.name && track.artist === '未知歌手') {
-        track.artist = data.recordings[0]['artist-credit'][0].name
-      }
-    }).catch(() => {})
+    await Promise.allSettled([lrcPromise, itunesPromise, deezerPromise, metingPromise, uomgPromise])
 
-    await Promise.allSettled([lrcP, itunesP, deezerP, metingP, uomgP, mbP])
-
-    // 如果全网都没查到封面，给个默认图
+    // 终极防线：未匹配到时使用默认封面
     if (!track.coverUrl) {
       track.coverUrl = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop'
     }
@@ -720,7 +802,7 @@ onUnmounted(() => {
 
 /* 🌟 极致精简：微缩播放态去除了跑马灯，仅留封面+标题+声波，绝不挤压 */
 .island-compact {
-  width: clamp(160px, calc(100vw - 180px), 240px);
+  width: clamp(160px, calc(100vw - 180px), 130px);
   height: 44px;
   border-radius: 22px !important; 
   background: rgba(0, 0, 0, 0.94) !important;
