@@ -178,15 +178,15 @@ const filesByTag = computed(() => {
   return groups
 })
 
-const isMedia = (name: string) => /\.(mp4|mkv|webm|mp3|wav|flac|aac|ogg|jpg|jpeg|png|gif|webp)$/i.test(name)
+const isMedia = (name: string) => /\.(mp4|mkv|webm|mp3|wav|flac|aac|ogg|jpg|jpeg|png|gif|webp|opus)$/i.test(name)
 const getMediaType = (name: string) => {
   if (/\.(mp4|mkv|webm)$/i.test(name)) return 'video'
-  if (/\.(mp3|wav|flac|aac|ogg)$/i.test(name)) return 'audio'
+  if (/\.(mp3|wav|flac|aac|ogg|opus)$/i.test(name)) return 'audio'
   return 'image'
 }
 const getMediaIcon = (name: string) => {
   if (/\.(mp4|mkv|webm)$/i.test(name)) return 'movie'
-  if (/\.(mp3|wav|flac|aac|ogg)$/i.test(name)) return 'audio_file'
+  if (/\.(mp3|wav|flac|aac|ogg|opus)$/i.test(name)) return 'audio_file'
   if (/\.(jpg|jpeg|png|gif|webp)$/i.test(name)) return 'image'
   if (/\.(zip|7z|rar|gz|tar)$/i.test(name)) return 'folder_zip'
   if (/\.(apk|exe|dmg|msi)$/i.test(name)) return 'apps'

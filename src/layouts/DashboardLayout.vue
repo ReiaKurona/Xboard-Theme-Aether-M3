@@ -199,8 +199,7 @@ const handleBack = () => {
           </button>
         </div>
 
-        <!-- 🌟 中间区域：顶部对齐，向下自然舒展大岛 -->
-        <div class="pointer-events-auto flex items-start justify-center">
+        <div class="pointer-events-auto flex-1 flex items-start justify-center relative h-11 mx-2">
           <DynamicIslandMusic
             :current-title="currentRouteTitle"
             :is-home="isHome"
