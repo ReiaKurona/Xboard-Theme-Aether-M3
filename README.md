@@ -142,7 +142,7 @@
 ### 第三步：配置独立安全下载存储中心 (可选)
 
 若需要使用主题内的“独立软件库”与“零知识 E2EE 视频播放器”，需配套部署后端 Node.js 存储服务：
-- 存储方案服务端项目仓库：👉 **[ReiaDown-Secure-Storage](https://github.com/your-username/ReiaDown-Secure-Storage)**
+- 存储方案服务端项目仓库：👉 **[ReiaDown-Secure-Storage](https://github.com/ReiaKurona/ReiaDown-Secure-Storage)**
 - 部署好后，将服务域名（例如 `https://install.example.com`）填入本主题设置中的 `下载中心 Node 服务地址` 即可。
 
 ---
