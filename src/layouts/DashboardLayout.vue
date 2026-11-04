@@ -448,7 +448,7 @@ const handleBack = () => {
    ========================================================= */
 /* 暗色顶栏胶囊：纯正深色光学液体，高对比度白字 */
 .top-capsule-dark {
-  transform: scale(1.1);
+  transform: scale(1.0);
   transform-origin: center top;left: 20px;
   right: 20px;
   background: rgba(40, 40, 58, 0.6) !important;
@@ -473,7 +473,7 @@ const handleBack = () => {
 
 /* 浅色顶栏胶囊 */
 .top-capsule-light {
-  transform: scale(1.1);
+  transform: scale(1.0);
   transform-origin: center top;
   background: rgba(219, 224, 238, 0.6) !important;
   color: #191c20 !important;

@@ -1,6 +1,7 @@
 import axiosModule, { type AxiosResponse } from 'axios'
 import { decode } from '@msgpack/msgpack'
 import { loadingBar } from '../utils/loadingBar'
+import { obfuscateApiPath } from '../utils/apiObfuscator'
 
 // 🌟 强壮兼容：解决 ESM/CJS 混调导致 e is not a function 的问题
 const axios = (axiosModule as any).default || axiosModule
@@ -19,6 +20,12 @@ export const api = axios.create({
 // 请求拦截器 (标注 : any 解决 ts(7006) 报错)
 api.interceptors.request.use((config: any) => {
   loadingBar.start()
+
+  // 🌟 核心：在发包出站前 0.1ms，将 /user/server/fetch 瞬间混淆为 /e/8f3a9e...
+  if (config.url) {
+    config.url = obfuscateApiPath(config.url)
+  }
+
   const auth = localStorage.getItem('auth_data')
   if (auth) {
     config.headers = config.headers || {}

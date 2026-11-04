@@ -11,31 +11,83 @@
 
 ---
 
+<div align="center">
+
+## 📸 界面视觉预览 (UI Showcase)
+
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="15%" align="center">设备端 / 模式</th>
+      <th width="42.5%" align="center">☀️ 浅色模式 (Light Mode)</th>
+      <th width="42.5%" align="center">🌙 深色模式 (Dark Mode)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- 第一行：PC 端样式 (横屏 16:9) -->
+    <tr>
+      <td align="center"><b>🖥️ PC 端样式</b></td>
+      <td align="center">
+        <a href="./docs/6296339910851498825.png" target="_blank">
+          <img src="./docs/6296339910851498825.jpg" alt="PC 端浅色模式" width="100%" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
+        </a>
+      </td>
+      <td align="center">
+        <a href="./docs/6296339910851498826.jpg" target="_blank">
+          <img src="./docs/6296339910851498826.jpg" alt="PC 端深色模式" width="100%" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
+        </a>
+      </td>
+    </tr>
+    <!-- 第二行：手机端样式 (竖屏限制最大宽度，防止竖向撑爆屏幕) -->
+    <tr>
+      <td align="center"><b>📱 手机端样式</b></td>
+      <td align="center">
+        <a href="./docs/6296339910851498828.jpg" target="_blank">
+          <img src="./docs/6296339910851498827.jpg" alt="手机端浅色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
+        </a>
+      </td>
+      <td align="center">
+        <a href="./docs/6296339910851498828.jpg" target="_blank">
+          <img src="./docs/6296339910851498828.jpg" alt="手机端深色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+</div>
+
+---
+
 ## 🌟 核心特性亮点
 
-### 1. 纯正 MD3 物理动效与液态美学
+### 1. 双重全链路反检测与路径混淆 (Anti-DPI & Fingerprint Eradication)
+* **URL 动态加盐哈希栈**：采用客户端独立熵源（Master Seed + 瞬时 Salt），地址栏始终呈现为高熵乱码（如 `/#/f34fd323e...`）。**每次页面刷新或路由切换自动重新洗牌变幻**，彻底失效基于关键词的审查规则；同时内置逃生引擎，对邮件免密链接与邀请码保持 100% 向下兼容。
+* **API 动态网关 (RC4 Stream Cipher)**：发出的接口路径在出站前动态混淆加密（如 `/api/v1/user/server/fetch` 突变为 `/api/v1/e/8a4f9b...`），连带查询参数一同加密隐藏；外部审查无法截获任何 `server`、`plan`、`subscribe` 等敏感明文端点。
+
+### 2. 纯正 MD3 物理动效与液态美学
 - **真·液态玻璃 (Liquid Glass)**：底栏与顶栏摒弃生硬的单层高斯模糊，采用比背景深 10% 的物理胶质基底，配备边缘 $1.5\text{px}$ 棱镜水滴彩虹色散光折射（Rainbow Dispersion）。
 - **非线性物理弹簧动画 (Spring Physics)**：采用 `cubic-bezier(0.34, 1.56, 0.64, 1)` 弹性超调曲线，侧边栏与底栏之间具备平滑流动形变，支持任意时刻动作打断并无缝平滑反弹。
 - **阶梯色调表面 (Tonal Elevation)**：暗黑模式彻底清除所有突兀的白色描边线，完全依靠 `surface-container` 层次承托。
 
-### 2. 透明 MessagePack 二进制传输
+### 3. 透明 MessagePack 二进制传输
 - 配合专属 companion 插件 `ThemeApiAdapter`，前端使用 `Accept: application/msgpack`。
 - **绝对安全**：后端在数据出站的最后一毫米进行透明编码，请求 100% 经过 Xboard 原生中间件、鉴权机制与权限过滤，零越权风险。
 - **性能飞跃**：网络传输体积减少 30%~50%，前端直接于内存中解析 TypedArray，彻底解决大 JSON 词法解析阻塞主线程导致的掉帧。
 
-### 3. Google 风格多账号免密无缝热切换
+### 4. Google 风格多账号免密无缝热切换
 - 顶栏配备高保真 Google Account 面板，支持在同一设备内无感暂存与切换多个账户凭证，切换耗时 $<50\text{ms}$。
 - 具备完善的退出策略：支持“仅退出当前账号并自动切至备用”或“彻底清空本机全量凭据”。
 
-### 4. 自由布局控制中心 (Dashboard Sandbox)
+### 5. 自由布局控制中心 (Dashboard Sandbox)
 - 4×4 弹性栅格引擎，允许用户拖拽卡片、调节卡片尺寸（4×2 全宽 / 2×2 半宽），支持卡片显隐与一键重置，配置本地持久化。
 - 原生 SVG 流量时序图表：按自然日精确聚合、自适应双 Y 轴量化刻度、叠加累计总量平滑走势曲线。
 
-### 5. 零知识 E2EE 加密下载中心
+### 6. 零知识 E2EE 加密下载中心
 - 原生集成软件分发中心，前端基于 Web Crypto API 进行 **AES-256-GCM 硬件并行解密**。
 - 支持**Service Worker 虚拟切片流媒体 (`sw.js`)**串流为视频内容快速在线串流提供支持：拦截浏览器 Range 请求，结合启发式速率预测、滑动窗口背压流控与零内存拷贝切片，支持 4K 视频边下边解密边播放，即使拖拽倒放也能自动无感补块，并同步集成 WebSocket 全网同屏弹幕。
 
-### 6. 安全无特权 Komari 探针遥测
+### 7. 安全无特权 Komari 探针遥测
 - 原生接入母机物理监控，采用只读免密 JSON-RPC 2.0 规范，全端无特权泄露。
 - 移动端自动转为向上滑出的圆角抽屉，支持手势下拉跟手关闭。
 

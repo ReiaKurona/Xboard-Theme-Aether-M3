@@ -487,13 +487,13 @@ const playMusic = async () => {
   isDeciphering.value = true
   let timeoutTriggered = false
 
-  // 设立 8 秒物理超时熔断器：如果流媒体拉取死锁，自动跳过此曲！
+  // 设立 30 秒物理超时熔断器：如果流媒体拉取死锁，自动跳过此曲！
   const fallbackTimer = setTimeout(() => {
     timeoutTriggered = true
     isDeciphering.value = false
     console.warn('[Music] 解密加载超时，自动跳下一首防卡死')
     nextTrack()
-  }, 8000)
+  }, 30000)
 
   try {
     if (!audioElement.value.src || currentLoadedTrackId.value !== currentTrack.value.id) {

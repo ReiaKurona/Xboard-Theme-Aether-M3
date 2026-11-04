@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { loadingBar } from '../utils/loadingBar'
+import { createObfuscatedHashHistory, encodeObfuscatedPath } from '../utils/routeObfuscator'
 
 const routes = [
   {
@@ -81,7 +82,7 @@ const routes = [
 ]
 
 export const router = createRouter({
-  history: createWebHashHistory(),
+  history: createObfuscatedHashHistory(),
   routes
 })
 
@@ -108,4 +109,14 @@ router.afterEach(() => {
 // 🌟 3. 路由异常兜底
 router.onError(() => {
   loadingBar.fail()
+})
+
+// 🌟 核心：确保每次刷新页面或重新进入时，立刻在地址栏换上一个全新的随机哈希！
+router.isReady().then(() => {
+  const currentRealPath = router.currentRoute.value.fullPath
+  if (currentRealPath && currentRealPath !== '/') {
+    // 强制换一副新面孔
+    const newObfuscatedHash = encodeObfuscatedPath(currentRealPath)
+    window.history.replaceState(window.history.state, '', `#${newObfuscatedHash}`)
+  }
 })

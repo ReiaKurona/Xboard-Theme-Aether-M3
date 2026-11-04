@@ -39,5 +39,12 @@ class Plugin extends AbstractPlugin
             }
             return response('// sw not found', 404);
         });
+
+        // 🌟 核心：注册通配动态混淆 API 网关 (支持 GET/POST/PUT/DELETE 等全请求方法)
+        app('router')->any(
+            '/api/v1/e/{cipher}',
+            [\Plugin\ThemeApiAdapter\Controllers\GatewayController::class, 'dispatchGateway']
+        )->where('cipher', '[A-Za-z0-9]+');
+
     }
 }
