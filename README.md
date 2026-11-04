@@ -7,9 +7,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-brightgreen.svg)](https://vuejs.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.x-purple.svg)](https://vitejs.dev/)
+[![Vite](https://img.shields.io/badge/Vite-9.x-purple.svg)](https://vitejs.dev/)
 [![Material 3](https://img.shields.io/badge/Material%20Design-3%20Expressive-blue.svg)](https://m3.material.io/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/your-username/Xboard-Theme-MD3-Expressive/pulls)
+
 
 ---
 
@@ -164,7 +164,7 @@
 | **活动自定义代码** | `activity_custom_code` | textarea | 支持万能 HTML/CSS/JS 注入，使用一组 ````` ```` ```` `````包裹实现多活动分卡 |
 | **自定义MD图标库 / 字体地址 (可选)** | `activity_custom_code` | textarea | 解决官方源加载慢导致图标错乱问题，留空默认走官方源。可填腾讯云OSS等woff2直链或各种开源镜像 |
 
-### 💡 多活动语法注入示例
+###  多活动语法注入示例
 在“活动自定义代码”文本框中输入：
 
 `````html
@@ -187,7 +187,7 @@
 
 ---
 
-## 🛠️ 本地二次开发指南
+##  本地二次开发指南
 
 ### 1. 准备本地环境
 ```bash
