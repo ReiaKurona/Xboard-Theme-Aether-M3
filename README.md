@@ -43,12 +43,12 @@
       <td align="center"><b>📱 手机端样式</b></td>
       <td align="center">
         <a href="./docs/6296339910851498828.jpg" target="_blank">
-          <img src="./docs/6296339910851498827.jpg" alt="手机端浅色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
+          <img src="./docs/6296339910851498828.jpg" alt="手机端浅色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
         </a>
       </td>
       <td align="center">
-        <a href="./docs/6296339910851498828.jpg" target="_blank">
-          <img src="./docs/6296339910851498828.jpg" alt="手机端深色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
+        <a href="./docs/6296339910851498827.jpg" target="_blank">
+          <img src="./docs/6296339910851498827.jpg" alt="手机端深色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
         </a>
       </td>
     </tr>
