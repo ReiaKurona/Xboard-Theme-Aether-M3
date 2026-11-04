@@ -91,6 +91,10 @@
 - 原生接入母机物理监控，采用只读免密 JSON-RPC 2.0 规范，全端无特权泄露。
 - 移动端自动转为向上滑出的圆角抽屉，支持手势下拉跟手关闭。
 
+### 8. 其他
+- 页面标题灵动岛有隐藏彩蛋，配合下载中心创建music并上传音频文件即可实现......
+
+
 ---
 
 ## 📦 项目架构组成
@@ -155,27 +159,28 @@
 | **Komari 探针公开地址** | `komari_url` | input | 你的探针访问端点，如 `https://stat.example.com` (末尾勿加斜杠) |
 | **下载中心 Node 服务地址** | `download_center_url` | input | 专属加密资源库 API 地址，如 `https://install.example.com` |
 | **开启全站活动悬浮窗** | `activity_float_enabled` | select | 当有活动时，是否在非首页右下角呈现 75% 不透明度 FAB 按钮 |
-| **活动自定义代码** | `activity_custom_code` | textarea | 支持万能 HTML/CSS/JS 注入，使用 ```` 包裹实现多活动分卡 |
+| **活动自定义代码** | `activity_custom_code` | textarea | 支持万能 HTML/CSS/JS 注入，使用一组 ```` ```` 包裹实现多活动分卡 |
+| **自定义MD图标库 / 字体地址 (可选)** | `activity_custom_code` | textarea | 解决官方源加载慢导致图标错乱问题，留空默认走官方源。可填腾讯云OSS等woff2直链或各种开源镜像 |
 
 ### 💡 多活动语法注入示例
 在“活动自定义代码”文本框中输入：
-````html
 
- ````
+`````html
+````
 <!-- 活动 1 -->
 <div style="padding: 16px; text-align: center;">
   <h3 style="color: #38bdf8;">🎮 玩游戏领权益</h3>
   <p>每日打卡参与小游戏！领取福利</p>
 </div>
- ````
- ````
+````
+````
 <!-- 活动 2 -->
 <div style="padding: 16px; text-align: center;">
   <h3 style="color: #f472b6;">🎁 限时特惠</h3>
   <p>单笔充值满 100 元赠送 20 元余额！</p>
 </div>
- ````
 ````
+
 前端引擎会自动将其隔离沙盒化并渲染为 **活动 1**、**活动 2** 两张独立卡片，严格防样式溢出，并为内嵌弹窗放行全屏穿透。
 
 ---
