@@ -1,3 +1,5 @@
+*<small>项目包含AI创作的内容</small>*
+
 # 🌌 Xboard MD3 : Next-Gen Theme & Binary Accelerator
 
 > 基于 **Google Material Design 3** 设计语言打造的次世代网络管理面板开源主题。
