@@ -15,20 +15,20 @@
 
 <div align="center">
 
-## 📸 界面视觉预览 (UI Showcase)
+##  界面视觉预览 (UI Showcase)
 
 <table width="100%">
   <thead>
     <tr>
       <th width="15%" align="center">设备端 / 模式</th>
-      <th width="42.5%" align="center">☀️ 浅色模式 (Light Mode)</th>
-      <th width="42.5%" align="center">🌙 深色模式 (Dark Mode)</th>
+      <th width="42.5%" align="center"> 浅色模式 (Light Mode)</th>
+      <th width="42.5%" align="center"> 深色模式 (Dark Mode)</th>
     </tr>
   </thead>
   <tbody>
     <!-- 第一行：PC 端样式 (横屏 16:9) -->
     <tr>
-      <td align="center"><b>🖥️ PC 端样式</b></td>
+      <td align="center"><b> PC 端样式</b></td>
       <td align="center">
         <a href="./docs/6296339910851498825.png" target="_blank">
           <img src="./docs/6296339910851498825.jpg" alt="PC 端浅色模式" width="100%" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
@@ -42,7 +42,7 @@
     </tr>
     <!-- 第二行：手机端样式 (竖屏限制最大宽度，防止竖向撑爆屏幕) -->
     <tr>
-      <td align="center"><b>📱 手机端样式</b></td>
+      <td align="center"><b> 手机端样式</b></td>
       <td align="center">
         <a href="./docs/6296339910851498828.jpg" target="_blank">
           <img src="./docs/6296339910851498828.jpg" alt="手机端浅色模式" width="62%" style="border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
@@ -61,7 +61,7 @@
 
 ---
 
-## 🌟 核心特性亮点
+##  核心特性亮点
 
 ### 1. 双重全链路反检测与路径混淆 (Anti-DPI & Fingerprint Eradication)
 * **URL 动态加盐哈希栈**：采用客户端独立熵源（Master Seed + 瞬时 Salt），地址栏始终呈现为高熵乱码（如 `/#/f34fd323e...`）。**每次页面刷新或路由切换自动重新洗牌变幻**，彻底失效基于关键词的审查规则；同时内置逃生引擎，对邮件免密链接与邀请码保持 100% 向下兼容。
@@ -99,7 +99,7 @@
 
 ---
 
-## 📦 项目架构组成
+##  项目架构组成
 
 ```text
 ├── plugins/
@@ -115,7 +115,7 @@
 
 ---
 
-## 🚀 部署与安装指南
+##  部署与安装指南
 
 整个项目分为 **后端加速插件** 与 **前端主题包** 两个独立部分，完全解耦：
 
@@ -149,7 +149,7 @@
 
 ---
 
-## ⚙️ 主题设置项解析 (`theme.config.json`)
+##  主题设置项解析 (`theme.config.json`)
 
 在 Xboard 后台【主题管理】->【设置】中可进行结构化定制：
 
@@ -231,7 +231,7 @@ npm run build:theme
 
 
 
-## 📄 开源许可证
+##  开源许可证
 本项目遵循 [MIT License](LICENSE) 协议开源。
 
 
