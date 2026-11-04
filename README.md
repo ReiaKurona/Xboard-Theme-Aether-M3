@@ -159,7 +159,7 @@
 | **Komari 探针公开地址** | `komari_url` | input | 你的探针访问端点，如 `https://stat.example.com` (末尾勿加斜杠) |
 | **下载中心 Node 服务地址** | `download_center_url` | input | 专属加密资源库 API 地址，如 `https://install.example.com` |
 | **开启全站活动悬浮窗** | `activity_float_enabled` | select | 当有活动时，是否在非首页右下角呈现 75% 不透明度 FAB 按钮 |
-| **活动自定义代码** | `activity_custom_code` | textarea | 支持万能 HTML/CSS/JS 注入，使用一组 ```` ```` 包裹实现多活动分卡 |
+| **活动自定义代码** | `activity_custom_code` | textarea | 支持万能 HTML/CSS/JS 注入，使用一组 ````` ```` ```` `````包裹实现多活动分卡 |
 | **自定义MD图标库 / 字体地址 (可选)** | `activity_custom_code` | textarea | 解决官方源加载慢导致图标错乱问题，留空默认走官方源。可填腾讯云OSS等woff2直链或各种开源镜像 |
 
 ### 💡 多活动语法注入示例
