@@ -79,7 +79,7 @@
     - [10.2.3 提取下载授权凭证与解密元数据 (`GET /api/resources/{id}/download`)](#1023-提取下载授权凭证与解密元数据 (`GET /api/resources/{id}/download`)).
     - [10.2.4 弹幕数据接口与 WebSocket 实时广播协议](#1024-弹幕数据接口与-WebSocket-实时广播协议).
     - [10.2.5 Service Worker 虚拟切片流控协议 (`public/sw.js`)](#1025-Service-Worker-虚拟切片流控协议 (`public/sw.js`)).
-  - [10.3 活动业务注入引擎与 Token 穿透协议](#103-活动业务注入引擎与 Token 穿透协议).
+  - [10.3 活动业务注入引擎与 Token 穿透协议](#103-活动业务注入引擎与-Token-穿透协议).
 
 
 ---
