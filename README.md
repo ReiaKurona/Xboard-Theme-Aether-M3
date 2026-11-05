@@ -6,9 +6,9 @@
 > 搭载全新 **MessagePack** 二进制化json传输加速引擎，并内嵌 E2EE 零知识资源管理中心接口与 Komari 探针无特权安全遥测系统。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Vue 3](https://img.shields.io/badge/Vue-3.5-brightgreen.svg)](https://vuejs.org/)
-[![Vite](https://img.shields.io/badge/Vite-8.3.4-purple.svg)](https://vitejs.dev/)
-[![Node](https://img.shields.io/badge/NodeJS-24.19.2-green.svg)](https://nodejs.org)
+[![Vue 3](https://img.shields.io/badge/Vue-3.5+-brightgreen.svg)](https://vuejs.org/)
+[![Vite](https://img.shields.io/badge/Vite-8.3.4+-purple.svg)](https://vitejs.dev/)
+[![Node](https://img.shields.io/badge/NodeJS-24.19.2+-green.svg)](https://nodejs.org)
 [![Material 3](https://img.shields.io/badge/Material%20Design-3%20Expressive-blue.svg)](https://m3.material.io/)
 
 
