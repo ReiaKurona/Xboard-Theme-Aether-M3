@@ -195,7 +195,7 @@ MyTheme/
 - 上传后主题放在 `storage/theme/{name}`，首次访问时复制到 `public/theme/{name}`，资源路径为 `/theme/{name}/assets/...`。
 - `config.json` 的 `configs` 数组定义后台可配置项（字段：`label`、`placeholder`、`field_name`、`field_type`、`select_options`、`default_value`），官方 Xboard 主题有 `theme_color`（select）、`background_url`（input）、`custom_html`（textarea）作为参考。
 
-**`dashboard.blade.php` 注入的变量**（官方主题写法，你照搬即可）：
+**`dashboard.blade.php` 注入的变量示例**（官方主题写法，你照搬即可）：
 
 ```html
 <script>
@@ -230,7 +230,7 @@ MyTheme/
 - **URL**: `GET /api/v1/guest/comm/config`
 - **鉴权**: 无
 
-#### 响应载荷 (Response)
+#### 响应载荷示例 (Response)
 ```json
 {
   "status": "success",
@@ -271,7 +271,7 @@ MyTheme/
 | `invite_code` | string | 视配置 | `is_invite_force=1` 时必填 |
 | 人机验证参数 | string | 视配置 | 参见 [2.2 节](#22-验证码机制与动态参数) |
 
-#### 响应载荷 (注册即自动登入)
+#### 响应载荷示例 (注册即自动登入)
 ```json
 {
   "status": "success",
@@ -285,7 +285,7 @@ MyTheme/
 
 ### 2.4 密码登录
 - **URL**: `POST /api/v1/passport/auth/login`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "email": "user@example.com",
@@ -296,7 +296,7 @@ MyTheme/
 
 ### 2.5 发送邮箱验证码
 - **URL**: `POST /api/v1/passport/comm/sendEmailVerify`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "email": "user@example.com",
@@ -307,7 +307,7 @@ MyTheme/
 
 ### 2.6 忘记密码重置
 - **URL**: `POST /api/v1/passport/auth/forget`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "email": "user@example.com",
@@ -355,7 +355,7 @@ MyTheme/
 
 ### 3.2 用户基础信息
 - **URL**: `GET /api/v1/user/info`
-- **响应载荷 (Response)**：
+- **响应载荷示例 (Response)**：
   ```json
   {
     "status": "success",
@@ -383,7 +383,7 @@ MyTheme/
 ### 3.3 订阅详情与客户端通用链接
 用户仪表盘核心指标接口。
 - **URL**: `GET /api/v1/user/getSubscribe`
-- **响应载荷 (Response)**：
+- **响应载荷示例 (Response)**：
   ```json
   {
     "status": "success",
@@ -413,7 +413,7 @@ MyTheme/
 
 ### 3.4 用户统计角标
 - **URL**: `GET /api/v1/user/getStat`
-- **响应数据格式**：**注意返回的是数字位置数组，非对象！**
+- **响应数据格式示例**：**注意返回的是数字位置数组，非对象！**
   ```json
   {
     "status": "success",
@@ -427,7 +427,7 @@ MyTheme/
 
 ### 3.5 提醒配置修改
 - **URL**: `POST /api/v1/user/update`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "remind_expire": 1, // 0 或 1
@@ -438,7 +438,7 @@ MyTheme/
 
 ### 3.6 修改安全密码
 - **URL**: `POST /api/v1/user/changePassword`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "old_password": "current_password",
@@ -449,7 +449,7 @@ MyTheme/
 
 ### 3.7 重置订阅与密钥防泄露
 - **URL**: `GET /api/v1/user/resetSecurity`
-- **响应**:
+- **响应示例**:
   ```json
   {
     "status": "success",
@@ -460,7 +460,7 @@ MyTheme/
 
 ### 3.8 佣金划转至账户主余额
 - **URL**: `POST /api/v1/user/transfer`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "transfer_amount": 1000 // 整数，单位：分 (必须 >= 1 且 <= commission_balance)
@@ -470,7 +470,7 @@ MyTheme/
 
 ### 3.9 活跃会话管理与远程设备下线
 - **拉取活动设备**: `GET /api/v1/user/getActiveSession`
-  - 返回 Sanctum `personal_access_tokens` 列表：
+  - 返回 Sanctum `personal_access_tokens` 列表示例：
     ```json
     {
       "status": "success",
@@ -490,7 +490,7 @@ MyTheme/
 
 ### 3.10 登录后站点配置
 - **URL**: `GET /api/v1/user/comm/config`
-- **响应载荷 (Response)**：
+- **响应载荷示例 (Response)**：
   ```json
   {
     "status": "success",
@@ -524,7 +524,7 @@ MyTheme/
 ### 4.1 获取可用套餐列表
 - **游客 (未登录)**: `GET /api/v1/guest/plan/fetch`
 - **用户 (登录后)**: `GET /api/v1/user/plan/fetch`（支持带 `?id=xx` 查询指定套餐）
-- **返回套餐实体 (Array)**：
+- **返回套餐实体示例 (Array)**：
   ```json
   [
     {
@@ -555,7 +555,7 @@ MyTheme/
 
 ### 4.2 优惠折扣券核验
 - **URL**: `POST /api/v1/user/coupon/check`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "code": "PROMO2026",
@@ -563,7 +563,7 @@ MyTheme/
     "period": "month_price" // 必须使用旧版周期键名
   }
   ```
-- **成功响应**:
+- **成功响应示例**:
   ```json
   {
     "status": "success",
@@ -580,7 +580,7 @@ MyTheme/
 
 ### 4.3 创建购买订单
 - **URL**: `POST /api/v1/user/order/save`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "plan_id": 1,
@@ -593,7 +593,7 @@ MyTheme/
 
 ### 4.4 支付网关查询与手续费运算
 - **URL**: `GET /api/v1/user/order/getPaymentMethod`
-- **返回列表 (Array)**：
+- **返回列表示例 (Array)**：
   ```json
   [
     {
@@ -613,7 +613,7 @@ MyTheme/
 ### 4.5 发起订单结算 (多态支付通道)
 ⚠️ **注意：此接口不遵循标准包装，返回体没有 `status` 字段！**
 - **URL**: `POST /api/v1/user/order/checkout`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "trade_no": "2026102716103214557019832",
@@ -621,11 +621,11 @@ MyTheme/
     "token": null    // Stripe 支付时由前端生成的付款 token
   }
   ```
-- **多态响应结构**：
+- **响应结构示例**：
   ```json
   {
     "type": 1,
-    "data": "https://upnp.rka.jp/submit.php?money=..."
+    "data": "https://example.paygateway.com/submit.php?money=..."
   }
   ```
 - **`type` 路由处理状态机**：
@@ -667,7 +667,7 @@ MyTheme/
 - **特异性说明**：当用户订阅已过期、被封禁或无可用流量时，**返回空数组 `{"data": []}`**。
 - **HTTP ETag 缓存优化**：
   服务端会在响应头下发 `ETag: "w/xxxx"`。前端再次请求时应附带请求头 `If-None-Match: "w/xxxx"`。若节点数据无变动，服务器会响应 **HTTP 304 Not Modified（空响应体）**，节省大量用户与服务器流量。
-- **返回节点对象结构 (Array)**：
+- **返回节点对象结构示例 (Array)**：
   ```json
   [
     {
@@ -699,7 +699,7 @@ MyTheme/
   - **必传参数**: `?language=zh-CN`（**务必传，否则后端 SQL 过滤为空**）；
   - **搜索参数**: `&keyword=clash`（模糊匹配标题和正文）；
   - **单篇阅读**: `&id=12`（返回包含完整正文 `body` 的文章对象）。
-- **列表返回值结构**：按分类名作为 Key 的字典映射：
+- **列表返回值结构示例**：按分类名作为 Key 的字典映射：
   ```json
   {
     "status": "success",
@@ -726,7 +726,7 @@ MyTheme/
 
 ### 6.2 工单对话消息流 (含 500 防御)
 - **URL**: `GET /api/v1/user/ticket/fetch?id=1`
-- **返回结构**: 在详情对象中增加 `message` 数组：
+- **返回结构示例**: 在详情对象中增加 `message` 数组：
   ```json
   {
     "id": 1,
@@ -747,7 +747,7 @@ MyTheme/
 
 ### 6.3 创建新工单
 - **URL**: `POST /api/v1/user/ticket/save`
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "subject": "工单主题标题",
@@ -771,7 +771,7 @@ MyTheme/
 在 Xboard 业务模型中，提现申请本质上是向后台**自动开具一张最高优先级（Level 2）的财务加急工单**。
 - **URL**: `POST /api/v1/user/ticket/withdraw`
 - **前置校验**: `userConfig.withdraw_close !== 1` 且 `commission_balance >= 最低提现门槛`。
-- **请求体 (Body)**：
+- **请求体示例 (Body)**：
   ```json
   {
     "withdraw_method": "支付宝", // 必须在 userConfig.withdraw_methods 列表内
@@ -786,7 +786,7 @@ MyTheme/
 
 ### 7.1 邀请数据看板与未用码列表
 - **URL**: `GET /api/v1/user/invite/fetch`
-- **响应载荷 (Response)**：
+- **响应载荷示例 (Response)**：
   ```json
   {
     "status": "success",
@@ -820,7 +820,7 @@ MyTheme/
 ⚠️ **注意：直接返回 `{ "data": [...], "total": 12 }`，无 status！**
 - **URL**: `GET /api/v1/user/invite/details?current=1&page_size=10`
 - **注意**: `page_size` 若小于 10，后端会自动强制按 10 处理。
-- **返回条目字段**:
+- **返回条目字段示例**:
   ```json
   {
     "data": [
@@ -848,7 +848,7 @@ MyTheme/
 核销前调用此接口预览奖励并提示用户，体验更友好。
 - **URL**: `POST /api/v1/user/gift-card/check`
 - **请求体**: `{"code": "GIFT-8888-9999"}`
-- **响应载荷 (Response)**：
+- **响应载荷示例 (Response)**：
   ```json
   {
     "status": "success",
@@ -866,7 +866,7 @@ MyTheme/
 ### 8.3 提交核销兑换
 - **URL**: `POST /api/v1/user/gift-card/redeem`
 - **请求体**: `{"code": "GIFT-8888-9999"}`（8 到 32 字符）
-- **响应载荷**:
+- **响应载荷示例**:
   ```json
   {
     "status": "success",
