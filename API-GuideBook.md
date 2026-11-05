@@ -1016,7 +1016,7 @@ api.interceptors.response.use(
 - **统一通信入口**：`POST {komari_url}/api/rpc2`
 - **跨域 (CORS) 穿透策略**：
   - *开发环境*：通过 Vite 代理转发至 `/komari-proxy/api/rpc2`，自动伪造 `Origin` 与 `Referer`；
-  - *生产环境*：在 Cloudflare 规则中对 `stat.example.com` 增加响应头 `Access-Control-Allow-Origin: *`，无需修改编译后的 Komari 二进制程序。
+  - *生产环境*：在 Cloudflare 规则中对 `stat.example.com` 增加响应头 `Access-Control-Allow-Origin: *`或者在Komari中的站点设置页添加CORS白名单，无需修改编译后的 Komari 二进制程序。
 
 ---
 
