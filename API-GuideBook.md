@@ -68,6 +68,19 @@
   - [8.4 个人兑换历史账目](#84-个人兑换历史账目)
   - [8.5 单条兑换卡模板详情](#85-单条兑换卡模板详情)
 - [9. 前端网络请求层最佳实践 (TypeScript 完整封装)](#9-前端网络请求层最佳实践-typescript-完整封装)
+- [10. 项目特色扩展与延伸生态 API 指南](#10-项目特色扩展与延伸生态-API-指南).
+  - [10.1 Komari 基础设施遥测系统 (只读免密模式)](#101-Komari-基础设施遥测系统 (只读免密模式)).
+    - [10.1.1 批量获取母机节点元数据 (`common:getNodes`)](#1011-批量获取母机节点元数据 (`common:getNodes`)).
+    - [10.1.2 批量获取母机最新运行状态 (`common:getNodesLatestStatus`)](#1012-批量获取母机最新运行状态 (`common:getNodesLatestStatus`)).
+    - [10.1.3 母机近况深度遥测时序快照 (`/api/recent/{uuid}`)](#1013-母机近况深度遥测时序快照 (`/api/recent/{uuid}`)).
+  - [10.2 E2EE 零知识加密虚拟流媒体下载中心](#102-E2EE-零知识加密虚拟流媒体下载中心).
+    - [10.2.1 派发下载中心身份令牌 (`POST /api/login`)](#1021-派发下载中心身份令牌 (`POST /api/login`)).
+    - [10.2.2 目录与资源列表拉取 (`GET /api/admin/resources`)](#1022-目录与资源列表拉取 (`GET /api/admin/resources`)).
+    - [10.2.3 提取下载授权凭证与解密元数据 (`GET /api/resources/{id}/download`)](#1023-提取下载授权凭证与解密元数据 (`GET /api/resources/{id}/download`)).
+    - [10.2.4 弹幕数据接口与 WebSocket 实时广播协议](#1024-弹幕数据接口与-WebSocket-实时广播协议).
+    - [10.2.5 Service Worker 虚拟切片流控协议 (`public/sw.js`)](#1025-Service-Worker-虚拟切片流控协议 (`public/sw.js`)).
+  - [10.3 活动业务注入引擎与 Token 穿透协议](#103-活动业务注入引擎与 Token 穿透协议).
+
 
 ---
 
@@ -986,3 +999,341 @@ api.interceptors.response.use(
 )
 ```
 
+---
+
+## 10. 项目特色扩展与延伸生态 API 指南
+
+> 本章节详细说明本项目除了 Xboard 原生 REST 接口之外，所接入的**第三方遥测系统、专属 E2EE 加密下载服务及活动业务引擎**的通信规范。
+> 方便社区开发者在此主题框架下二次定制，或将本套流媒体与探针交互移植至其他客户端中。
+
+---
+
+### 10.1 Komari 基础设施遥测系统 (只读免密模式)
+
+本项目放弃了具有越权隐患的管理员 RESTful 接口，全面采用 Komari 官方免密公开的 **JSON-RPC 2.0 规范**，仅读取物理母机的只读性能数据。
+
+- **服务基地址配置**：由主题后台配置项注入 `window.settings.komari_url`（如 `https://stat.example.com`，末尾不带斜杠）。
+- **统一通信入口**：`POST {komari_url}/api/rpc2`
+- **跨域 (CORS) 穿透策略**：
+  - *开发环境*：通过 Vite 代理转发至 `/komari-proxy/api/rpc2`，自动伪造 `Origin` 与 `Referer`；
+  - *生产环境*：在 Cloudflare 规则中对 `stat.example.com` 增加响应头 `Access-Control-Allow-Origin: *`，无需修改编译后的 Komari 二进制程序。
+
+---
+
+#### 10.1.1 批量获取母机节点元数据 (`common:getNodes`)
+
+获取当前探针纳管的所有物理母机硬件参数、国家地区、虚拟化类型与网络配置。
+
+- **请求方式**: `POST {komari_url}/api/rpc2`
+- **请求头 (Headers)**:
+  ```http
+  Content-Type: application/json
+  Accept: application/json
+  ```
+- **请求体 (Request Body)**:
+  ```json
+  {
+    "jsonrpc": "2.0",
+    "method": "common:getNodes",
+    "params": {},
+    "id": 1
+  }
+  ```
+- **成功响应载荷 (Response)**:
+  ```json
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "9d12f9c0-e66b-4a08-aaed-5733509e0c62": {
+        "uuid": "9d12f9c0-e66b-4a08-aaed-5733509e0c62",
+        "name": "腾讯云|广州|01",
+        "cpu_name": "AMD EPYC 7K62 48-Core Processor",
+        "virtualization": "kvm",                  // 虚拟化架构: kvm, openvz, lxc, baremetal
+        "arch": "amd64",                          // CPU 架构: amd64, arm64
+        "cpu_cores": 2,                           // 逻辑核心数
+        "cpu_physical_cores": 2,                  // 物理核心数
+        "os": "Debian GNU/Linux 13 (trixie)",     // 系统发行版全称
+        "kernel_version": "7.0.6-x64v3-xanmod1",  // 内核版本
+        "gpu_name": "None",
+        "ipv4": "159.75.69.182",                  // 节点公网 IPv4
+        "ipv6": "2402:4e00:c012:1900:420c:...",   // 节点公网 IPv6
+        "region": "🇨🇳",                          // 地区 Emoji 标识
+        "mem_total": 1004347392,                  // 物理内存总量 (单位: 字节 Bytes)
+        "swap_total": 1073737728,                 // 交换内存总量 (单位: 字节 Bytes)
+        "disk_total": 42166988800,                // 存储盘总量 (单位: 字节 Bytes)
+        "version": "Snapshot-2610260110",
+        "weight": 0
+      }
+    }
+  }
+  ```
+
+---
+
+#### 10.1.2 批量获取母机最新运行状态 (`common:getNodesLatestStatus`)
+
+轮询获取母机实时的 CPU、内存、网络上下行瞬时速率与累计传输指标。
+
+- **请求方式**: `POST {komari_url}/api/rpc2`
+- **请求体 (Request Body)**:
+  ```json
+  {
+    "jsonrpc": "2.0",
+    "method": "common:getNodesLatestStatus",
+    "params": {},
+    "id": 2
+  }
+  ```
+- **成功响应载荷 (Response)**:
+  ```json
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+      "9d12f9c0-e66b-4a08-aaed-5733509e0c62": {
+        "online": true,                           // 探针连通状态: true 在线, false 离线
+        "uptime": 2862735,                        // 持续运行秒数 (需换算 天/时/分)
+        "cpu": 7.2,                               // CPU 使用率百分比 (0.0 ~ 100.0)
+        "ram": 314236928,                         // 内存已用 (Bytes, 与 mem_total 相除折算百分比)
+        "disk": 30668730368,                      // 磁盘已用 (Bytes, 与 disk_total 相除折算百分比)
+        "network_rx": 5103082,                    // 下行实时速率 (Bytes/s, 换算为 KB/s 或 MB/s)
+        "network_tx": 4350592,                    // 上行实时速率 (Bytes/s)
+        "traffic_rx": 1782309823839,              // 历史累计下载总流量 (Bytes)
+        "traffic_tx": 1149961319526               // 历史累计上传总流量 (Bytes)
+      }
+    }
+  }
+  ```
+  *注意：Komari 在 `status` 中下发的 `ram` 与 `disk` 为**原始已用字节数**，前端计算真实百分比公式为：*
+  $$\text{RAM\%} = \frac{\text{status.ram}}{\text{nodeInfo.mem\_total}} \times 100\%$$
+
+---
+
+#### 10.1.3 母机近况深度遥测时序快照 (`/api/recent/{uuid}`)
+
+点击单台母机卡片后调用，提取最近 1~2 分钟的高频采样时序流，用于绘制 **Latency 链路质量双轴曲线** 与系统负载。
+
+- **请求方式**: `GET {komari_url}/api/recent/{uuid}`
+- **成功响应载荷 (Response)**:
+  ```json
+  {
+    "status": "success",
+    "message": "",
+    "data": [
+      {
+        "uuid": "9d12f9c0-e66b-4a08-aaed-5733509e0c62",
+        "cpu": { "usage": 7.90 },
+        "ram": { "total": 1004347392, "used": 317681664 },
+        "swap": { "total": 1073737728, "used": 152641536 },
+        "load": {
+          "load1": 0.26,                          // 1 分钟系统平均负载
+          "load5": 0.40,                          // 5 分钟系统平均负载
+          "load15": 0.29                          // 15 分钟系统平均负载
+        },
+        "disk": { "total": 42166988800, "used": 30668709888 },
+        "network": {
+          "up": 3575717,                          // 瞬时上传字节/秒
+          "down": 3708372,                        // 瞬时下载字节/秒
+          "totalUp": 1149928232339,               // 累计上传总字节
+          "totalDown": 1782271389546              // 累计下载总字节
+        },
+        "connections": {
+          "tcp": 254,                             // 当前系统 TCP 活跃连接数
+          "udp": 74                               // 当前系统 UDP 活跃连接数
+        },
+        "process": 124,                           // 系统活跃进程数
+        "uptime": 2862725,                        // 运行时间秒数
+        "updated_at": "2026-10-27T13:05:51.881712208Z" // ISO 8601 采样时间
+      }
+    ]
+  }
+  ```
+
+---
+
+### 10.2 E2EE 零知识加密虚拟流媒体下载中心
+
+该体系对应独立的 Node.js 存储服务（`ReiaDown-Secure-Storage`），支持全链路端到端 AES-256-GCM 硬件加解密与分块串流播放。
+
+- **服务基地址配置**：由主题后台配置项注入 `window.settings.download_center_url`（如 `https://install.example.com`）。
+- **会话存储键名**：`localStorage.getItem('reiadown_token')`。
+
+---
+
+#### 10.2.1 派发下载中心身份令牌 (`POST /api/login`)
+
+- **请求方式**: `POST {download_center_url}/api/login`
+- **请求体 (Request Body)**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "user_password"
+  }
+  ```
+- **成功响应**:
+  ```json
+  {
+    "success": true,
+    "token": "eyJhbGciOiJIUzI1NiIsIn...", // JWT 会话令牌，通常 24h 有效
+    "user": { "email": "user@example.com", "isAdmin": false }
+  }
+  ```
+
+---
+
+#### 10.2.2 目录与资源列表拉取 (`GET /api/admin/resources`)
+
+已登录用户拉取当前文件夹下的子文件夹、加密资源与目录专属 Markdown 说明。
+
+- **请求方式**: `GET {download_center_url}/api/admin/resources?parentId={parentId}`
+- **请求头 (Headers)**:
+  ```http
+  Authorization: Bearer <reiadown_token>
+  ```
+- **成功响应载荷**:
+  ```json
+  {
+    "success": true,
+    "folder_md": "### 目录说明\n此处为客户端安装包归档目录。", // 当前目录的 Markdown 说明文本
+    "resources": [
+      {
+        "id": 101,
+        "parent_id": 0,
+        "type": "folder",                         // "folder" 目录 | "file" 文件
+        "name": "Windows 客户端",
+        "tags": "",
+        "file_size": 0,
+        "created_at": "2026-10-20T08:00:00.000Z"
+      },
+      {
+        "id": 102,
+        "parent_id": 101,
+        "type": "file",
+        "name": "FlClash-0.9.1-windows.zip",
+        "tags": "FlClash,推荐",                   // 逗号分隔的分类标签
+        "is_encrypted": 1,                        // 1 = 启用端到端 AES-GCM 分块加密
+        "file_size": 43238512,                    // 文件原始明文字节大小
+        "total_chunks": 5,                        // 10MB 分块总数
+        "oss_id": 1                               // 关联的云端对象存储 ID
+      }
+    ]
+  }
+  ```
+
+---
+
+#### 10.2.3 提取下载授权凭证与解密元数据 (`GET /api/resources/{id}/download`)
+
+客户端拉取文件的预签名下载切片地址和对称密钥。服务端采用基于当前用户的 JWT 会话密钥进行 **AES-256-GCM 二次封装传输**。
+
+- **请求方式**: `GET {download_center_url}/api/resources/{id}/download`
+- **请求头**: `Authorization: Bearer <reiadown_token>`
+- **未解密的外层网络载荷**:
+  ```json
+  {
+    "e2ee": true,
+    "iv": "u8Z...==",                             // 12 字节 Base64 初始化向量
+    "tag": "k8X...==",                            // 16 字节 Base64 GCM 认证标签
+    "data": "A9f...=="                            // Base64 加密密文
+  }
+  ```
+- **前端解密流程 (Web Crypto API)**：
+  1. 将当前用户的 `reiadown_token` 经由 SHA-256 散列，派生出 32 字节会话主密钥 $K_{\text{session}}$；
+  2. 使用 $K_{\text{session}}$ 和 `iv` 对 `data + tag` 进行硬件解密；
+  3. 解密还原出的明文 JSON 结构如下：
+     ```json
+     {
+       "success": true,
+       "isLink": false,
+       "file_name": "FlClash-0.9.1-windows.zip",
+       "is_encrypted": true,
+       "encrypt_key": "dGVzdF9rZXlfYmFzZTY0...", // 文件的 256 位 AES-GCM 还原密钥
+       "total_chunks": 5,
+       "downloadUrls": [
+         "https://oss.example.com/vault/chunk_0.bin?Signature=...",
+         "https://oss.example.com/vault/chunk_1.bin?Signature=..."
+       ]
+     }
+     ```
+
+---
+
+#### 10.2.4 弹幕数据接口与 WebSocket 实时广播协议
+
+- **拉取历史弹幕**: `GET {download_center_url}/api/resources/{id}/danmaku`
+  - 返回弹幕数组：`[{ "id": "1", "start": 3200, "txt": "前方高能！", "mode": "scroll", "style": { "color": "#ffffff", "fontSize": "20px" } }]`
+- **发送新弹幕**: `POST {download_center_url}/api/resources/{id}/danmaku`
+  - 请求体：
+    ```json
+    {
+      "start": 3200,      // 视频出现的相对毫秒数
+      "txt": "测试弹幕",   // 弹幕内容
+      "color": "#00e5ff", // 颜色 HEX
+      "font_size": "20px",
+      "mode": "scroll"    // "scroll" 滚动 | "top" 顶部固定 | "bottom" 底部固定
+    }
+    ```
+- **WebSocket 实时双向流广播**:
+  - 连接地址：`ws(s)://{download_center_host}/`
+  - 发送广播载荷：
+    ```json
+    {
+      "type": "danmaku_send",
+      "resourceId": 102,
+      "comment": { "id": "custom_1", "start": 3200, "txt": "全网同步弹幕", "style": { "color": "#ffffff" } }
+    }
+    ```
+  - 接收广播载荷：`type === 'danmaku_receive'`，自动注入西瓜播放器画面中。
+
+---
+
+#### 10.2.5 Service Worker 虚拟切片流控协议 (`public/sw.js`)
+
+解决浏览器播放器原生不支持加密分块的问题，SW 在底层模拟出合法的流媒体服务器。
+
+1. **注册流媒体切片清单 (`postMessage`)**:
+   ```javascript
+   const channel = new MessageChannel();
+   navigator.serviceWorker.controller.postMessage({
+     type: 'REGISTER_STREAM',
+     id: 'stream_17620000',
+     manifest: {
+       file_size: 43238512,
+       chunk_size: 10485760, // 10MB 标准分块
+       urls: [ "https://...", "https://..." ],
+       encrypt_key: "base64_aes_key...",
+       mime_type: "video/mp4"
+     }
+   }, [channel.port2]);
+   ```
+2. **虚拟流访问端点**:
+   - URL: `/e2ee-stream/stream_17620000`
+   - **Range 响应契约**: SW 拦截浏览器 `<video>` 发送的 `Range: bytes=start-end`，计算对应的块编号并按需拉取解密，返回标准 **HTTP 206 Partial Content**。
+3. **销毁流媒体并释放内存**:
+   ```javascript
+   navigator.serviceWorker.controller.postMessage({
+     type: 'CLOSE_STREAM',
+     id: 'stream_17620000'
+   });
+   ```
+
+---
+
+### 10.3 活动业务注入引擎与 Token 穿透协议
+
+在主题后台【活动页面自定义代码】中填入的代码，通过本引擎实现样式的绝对隔离与免密鉴权穿透。
+
+- **语法块分片标记**:
+  使用 ` ```` `（四个连续反引号）包裹各个独立的活动，前端引擎自动切分为独立卡片。
+- **免登录 Token 穿透机制**:
+  活动前端可通过以下协议从宿主容器读取当前已登录用户的 Xboard 凭据，实现活动服务免输入账密一键授权：
+  ```javascript
+  // 宿主在拉起活动 iframe 或外链时，自动在 URL 尾部注入 token 参数：
+  const targetUrl = `${ACTIVITY_BASE_URL}?token=${encodeURIComponent(localStorage.getItem('auth_data'))}`;
+  ```
+- **iframe 弹窗关闭回传通信协议**:
+  当嵌入在活动视窗中的 H5 页面完成业务（如抽奖完毕或用户点击游戏内关闭）时，可向父容器发送 PostMessage 通知关闭视窗：
+  ```javascript
+  window.parent.postMessage({ type: 'CLOSE_REIA_DIALOG' }, '*');
+  ```
