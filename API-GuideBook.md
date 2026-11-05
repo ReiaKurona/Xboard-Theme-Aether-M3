@@ -1056,8 +1056,8 @@ api.interceptors.response.use(
         "os": "Debian GNU/Linux 13 (trixie)",     // 系统发行版全称
         "kernel_version": "7.0.6-x64v3-xanmod1",  // 内核版本
         "gpu_name": "None",
-        "ipv4": "159.75.69.182",                  // 节点公网 IPv4
-        "ipv6": "2402:4e00:c012:1900:420c:...",   // 节点公网 IPv6
+        "ipv4": "1.1.1.1",                  // 节点公网 IPv4
+        "ipv6": "2000:4000:c000:1000:4000:...",   // 节点公网 IPv6
         "region": "🇨🇳",                          // 地区 Emoji 标识
         "mem_total": 1004347392,                  // 物理内存总量 (单位: 字节 Bytes)
         "swap_total": 1073737728,                 // 交换内存总量 (单位: 字节 Bytes)
@@ -1248,7 +1248,7 @@ api.interceptors.response.use(
        "isLink": false,
        "file_name": "FlClash-0.9.1-windows.zip",
        "is_encrypted": true,
-       "encrypt_key": "dGVzdF9rZXlfYmFzZTY0...", // 文件的 256 位 AES-GCM 还原密钥
+       "encrypt_key": "dGVzdF9rZXlfxxx...", // 文件的 256 位 AES-GCM 还原密钥
        "total_chunks": 5,
        "downloadUrls": [
          "https://oss.example.com/vault/chunk_0.bin?Signature=...",
@@ -1268,7 +1268,7 @@ api.interceptors.response.use(
     ```json
     {
       "start": 3200,      // 视频出现的相对毫秒数
-      "txt": "测试弹幕",   // 弹幕内容
+      "txt": "这是一条测试弹幕....",   // 弹幕内容
       "color": "#00e5ff", // 颜色 HEX
       "font_size": "20px",
       "mode": "scroll"    // "scroll" 滚动 | "top" 顶部固定 | "bottom" 底部固定
@@ -1308,8 +1308,8 @@ api.interceptors.response.use(
    }, [channel.port2]);
    ```
 2. **虚拟流访问端点**:
-   - URL: `/e2ee-stream/stream_17620000`
-   - **Range 响应契约**: SW 拦截浏览器 `<video>` 发送的 `Range: bytes=start-end`，计算对应的块编号并按需拉取解密，返回标准 **HTTP 206 Partial Content**。
+   - URL: `/e2ee-stream/[stream/music]_xxxxxxx`
+   - **Range 响应契约**: SW 拦截浏览器 `<video>或<audio>` 发送的 `Range: bytes=start-end`，计算对应的块编号并按需拉取解密，返回标准 **HTTP 206 Partial Content**。
 3. **销毁流媒体并释放内存**:
    ```javascript
    navigator.serviceWorker.controller.postMessage({
