@@ -9,6 +9,7 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3.5+-brightgreen.svg)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-8.3.4+-purple.svg)](https://vitejs.dev/)
 [![Node](https://img.shields.io/badge/NodeJS-24.19.2+-green.svg)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0.3-blue.svg)](https://www.typescriptlang.org/)
 [![Material 3](https://img.shields.io/badge/Material%20Design-3%20Expressive-blue.svg)](https://m3.material.io/)
 
 
