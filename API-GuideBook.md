@@ -80,6 +80,7 @@
     - [10.2.4 弹幕数据接口与 WebSocket 实时广播协议](#1024-弹幕数据接口与-WebSocket-实时广播协议).
     - [10.2.5 Service Worker 虚拟切片流控协议 (`public/sw.js`)](#1025-Service-Worker-虚拟切片流控协议 (`public/sw.js`)).
   - [10.3 活动业务注入引擎与 Token 穿透协议](#103-活动业务注入引擎与-Token-穿透协议).
+  - [10.4 彩蛋](#104-彩蛋).
 
 
 ---
@@ -1337,3 +1338,287 @@ api.interceptors.response.use(
   ```javascript
   window.parent.postMessage({ type: 'CLOSE_REIA_DIALOG' }, '*');
   ```
+---
+
+根据你提供的最新源码架构与在线接口返回数据（LRCLIB、iTunes、下载中心后端），为你整理出标准 Markdown 格式的 **《10.4 顶栏灵动岛流媒体播放器与全网开源刮削引擎 API 开发文档》**。
+
+你可以直接将其无缝追加到项目现有的 `API-GuideBook.md` 文档第 10 章节中。
+
+---
+
+### 10.4 彩蛋
+- q(≧▽≦q)
+
+灵动岛音乐播放器（`DynamicIslandMusic.vue`）是挂载于顶栏中央的沉浸式音频流媒体套件。它集成了**下载中心 E2EE 零知识解密流、Service Worker 虚拟音频串流（支持 HTTP 206 断点续传）、全网五源并发元数据与逐行滚动歌词刮削系统、系统级 Media Session 硬件联动以及底部 osu! 太阳辐射声波可视化**。
+
+```
+                                      ┌──> [源1: LRCLIB] ──> 获取逐行时间轴歌词 (LRC)
+                                      ├──> [源2: Apple iTunes] ──> 获取 600x600 超清封面
+[扫描音乐库] ──> [E2EE 解密/SW 串流] ──┼──> [源3: Meting/网易云] ──> 获取华语/ACG 歌词及封面
+                                      ├──> [源4: Deezer] ──> 国际跨国曲库封面兜底
+                                      └──> [源5: UOMG/网易直连] ──> 国内高命中率备用
+```
+
+---
+
+#### 10.4.1 音乐资产嗅探与目录索引检索
+
+* **概述**：组件初始化时，从 `window.settings.download_center_url` 发起请求，通过两级父子关联智能嗅探名为 `music` 或 `音乐` 的文件夹，并提取其中的受保护音频文件清单。
+* **依赖凭据**：请求头必须携带下载中心颁发的 JWT Token（`localStorage.getItem('reiadown_token')`）。若未登录则整机静默，不占用标题栏空间。
+
+##### 1. 扫描根目录与匹配目标文件夹
+* **URL**: `GET {download_center_url}/api/admin/resources?parentId=0`
+* **请求头 (Headers)**:
+  ```http
+  Authorization: Bearer <reiadown_token>
+  Accept: application/json
+  ```
+* **前端业务处理**：
+  遍历返回的 `resources` 数组，匹配 `type === 'folder'` 且名称为 `music` 或包含 `音乐` 的目录对象，提取其目录 `id`（例如图中的 `parentId=46`）。
+
+##### 2. 拉取音乐目录下的音频文件
+* **URL**: `GET {download_center_url}/api/admin/resources?parentId={musicFolderId}`
+* **响应示例 (JSON)**:
+  ```json
+  {
+    "success": true,
+    "resources": [
+      {
+        "id": 47,
+        "parent_id": 46,
+        "type": "file",
+        "name": "Iris,SIRIUSBLVCK - Twilight.flac",
+        "tags": "未分类",
+        "link": "",
+        "sync_mode": "general",
+        "oss_id": 1,
+        "object_key": "encrypted_vault/1793589265413_ersluhyp",
+        "is_encrypted": 1,
+        "file_size": 17647200,
+        "total_chunks": 2,
+        "sort_order": 0,
+        "folder_md": null,
+        "created_at": "2026-11-02T01:45:56.000Z"
+      }
+    ],
+    "folder_md": null
+  }
+  ```
+* **字段说明**：
+  * `id`: 音频资源唯一主键编号；
+  * `name`: 文件名，前端自动提取并规整为歌手（Artist）与歌曲名（Title）；
+  * `file_size`: 原始音频大小（字节）；
+  * `total_chunks`: 云端加密碎片总数；
+  * `is_encrypted`: 是否受 AES-256-GCM 零知识加密保护。
+
+---
+
+#### 10.4.2 专属音频凭证获取与会话解密
+
+* **URL**: `GET {download_center_url}/api/resources/{id}/download`
+* **请求头 (Headers)**:
+  ```http
+  Authorization: Bearer <reiadown_token>
+  ```
+* **避坑说明**：原生 `<audio src="...">` 无法携带自定义 `Authorization` 头，直接请求此端点会触发 **HTTP 401 Unauthorized**。前端必须使用 `fetch` 提前拉取加密包，并在前端内存中解密出 S3 预签名直传切片集合与解密密钥。
+
+##### 1. 密文响应示例 (E2EE Package)
+```json
+{
+  "e2ee": true,
+  "iv": "3Qx+9J2/gC5jG1a4",
+  "tag": "eM84sJkLz0A91VbB+Xg==",
+  "data": "kLz0A91VbB+Xg8/q...base64密文..."
+}
+```
+
+##### 2. 前端解密后还原明文元数据 (Decrypted Payload)
+通过 `crypto.ts` 中基于用户 Token 派生的会话密钥 `SHA-256(token)` 解密获得：
+```json
+{
+  "success": true,
+  "isLink": false,
+  "downloadUrls": [
+    "https://s3.endpoint.com/bucket/encrypted_vault/..._chunk_0.bin?X-Amz-Signature=...",
+    "https://s3.endpoint.com/bucket/encrypted_vault/..._chunk_1.bin?X-Amz-Signature=..."
+  ],
+  "total_chunks": 2,
+  "is_encrypted": true,
+  "encrypt_key": "u8+f...Base64格式AES-256-GCM密钥...",
+  "file_name": "Iris,SIRIUSBLVCK - Twilight.flac"
+}
+```
+
+---
+
+#### 10.4.3 Service Worker 虚拟音频流挂载与内存降级自愈
+
+前端获取到 `downloadUrls` 与 `encrypt_key` 后，通过 IPC 信道向 `sw.js` 注册流式通道，支持原生播放器按需以 **HTTP 206 Partial Content** 播放 FLAC / MP3 / Opus：
+
+##### 1. 注册虚拟音频流 (MessageChannel IPC)
+* **向 Service Worker 派发指令**:
+  ```javascript
+  const streamId = `music_${track.id}_${Date.now()}`
+  navigator.serviceWorker.controller.postMessage({
+    type: 'REGISTER_STREAM',
+    id: streamId,
+    manifest: {
+      file_size: track.resource.file_size,
+      chunk_size: 10 * 1024 * 1024,
+      urls: data.downloadUrls,
+      encrypt_key: data.encrypt_key,
+      mime_type: 'audio/flac' // 严格按扩展名匹配 audio/flac, audio/mpeg, audio/opus
+    }
+  }, [channel.port2])
+  ```
+* **虚拟音频挂载挂点**:
+  ```
+  /e2ee-stream/{streamId}
+  ```
+* **自愈回退与会话记忆（Session Memory Fallback）**：
+  若当前环境处于无痕窗口或不支持 Service Worker 拦截，系统自动捕获并在内存中通过 `crypto.subtle.decrypt` 并发解密切片拼装为 `Blob URL`（`URL.createObjectURL(blob)`）。
+  同时将状态写入 `sessionStorage.setItem('music_stream_fallback', 'true')`，本次浏览器运行期间保持免重试顺畅直解。
+
+---
+
+#### 10.4.4 全网五源级联并发刮削引擎
+
+由于网络音频文件名通常带有 `(TV Size)`、`[FLAC]`、`feat.` 或混杂副歌名，播放器内置了**清洗过滤器**与**多源并发竞速级联算法**：
+* **清洗预处理**：剥离括号内容、去除连字符，优先以 `纯歌名` 检索（命中率最高）；若无果再降级以 `歌名 + 第一顺位作者` 检索。
+* **竞速机制**：5 个源同时发起 `Promise.allSettled`，任一接口先返回封面或歌词立即响应上屏。
+
+##### 1. 源 1：LRCLIB 开放 API（逐行时间轴歌词首选）
+* **接口形式**: `GET https://lrclib.net/api/search?q={query}`
+* **鉴权/CORS**: 完全免 Key、原生支持跨域 (`Access-Control-Allow-Origin: *`)
+* **响应示例 (JSON)**:
+  ```json
+  [
+    {
+      "id": 38114877,
+      "name": "Deep Dive",
+      "trackName": "Deep Dive",
+      "artistName": "轟はじめ",
+      "albumName": "Deep Dive",
+      "duration": 167,
+      "instrumental": false,
+      "plainLyrics": "Late night 今夜はwith my girlies...",
+      "syncedLyrics": "[00:12.45] Late night 今夜はwith my girlies\n[00:15.10] Baby すぐ出なよ (let's get party, yeah)..."
+    }
+  ]
+  ```
+* **字段提取**：直接提取 `syncedLyrics` 导入滚动歌词渲染器；若仅有 `plainLyrics` 则作为静态歌词备用展示。
+
+##### 2. 源 2：Apple iTunes Search API（600×600 超清官方封面）
+* **接口形式**: `GET https://itunes.apple.com/search?term={query}&media=music&entity=song&country=JP&limit=1`
+* **鉴权/CORS**: 官方原生支持跨域、无需 API Key
+* **响应示例 (JSON)**:
+  ```json
+  {
+    "resultCount": 1,
+    "results": [
+      {
+        "wrapperType": "track",
+        "kind": "song",
+        "artistId": 1654897210,
+        "trackName": "Deep Dive",
+        "artistName": "轟はじめ",
+        "collectionName": "Deep Dive - Single",
+        "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/a5/1e/40/a51e4063-872e-3600-4b36-559d87132890/cover.jpg/100x100bb.jpg",
+        "trackTimeMillis": 167000
+      }
+    ]
+  }
+  ```
+* **高清封面转换技巧**：前端自动执行 `.replace('100x100bb', '600x600bb')`，提取 600×600 高分辨率印刷级正方形封面。
+
+##### 3. 源 3：Deezer Open API（国际流行乐备用）
+* **接口形式**: `GET https://api.deezer.com/search?q={query}&limit=1`
+* **响应提取**: 提取 `data[0].album.cover_xl` 或 `cover_big` 作为高清大图兜底。
+
+##### 4. 源 4：Meting 公共镜像聚合源（华语、ACG 与特化歌词）
+* **接口形式**: `GET https://api.injahow.cn/meting/?type=search&keyword={query}`
+* **歌词与图片二级提取**:
+  * 封面：直接取 `item.pic`
+  * 歌词：通过 `GET https://api.injahow.cn/meting/?type=lrc&id={id}` 获得纯文本 LRC。
+
+##### 5. 源 5：UOMG API（国内网易云直连检索备用）
+* **接口形式**: `GET https://api.uomg.com/api/search/netease?words={query}`
+* **响应提取**: 当 `code === 1` 时，直接提取 `data[0].picurl` 作为专辑封面备份。
+
+---
+
+#### 10.4.5 毫秒级时间轴互锁滚动歌词协议
+
+解析标准 LRC 时间戳，将文本解析为内存连续数组结构，并通过 `timeupdate` 事件进行毫秒级精准对齐：
+
+#### 1. LRC 解析器正则表达式与结构定义
+```typescript
+export interface LyricLine {
+  time: number // 转换为秒级浮点数 (如 75.45)
+  text: string // 纯文本歌词
+}
+
+// 匹配 [mm:ss.xx] 或 [mm:ss.xxx]
+const match = line.match(/\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/)
+```
+
+##### 2. 时间轴互锁计算算法
+在音频播放过程中，播放器高频计算当前播放进度所在区间：
+```typescript
+const activeLyricIndex = computed(() => {
+  if (!currentTrack.value?.lyrics?.length) return -1
+  const t = currentTime.value
+  const list = currentTrack.value.lyrics
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (t >= list[i].time) return i
+  }
+  return 0
+})
+```
+
+##### 3. 视口平滑居中同步
+通过监听 `activeLyricIndex` 变动，自动将激活行滚动至可视区域几何中心：
+```typescript
+const activeEl = lyricsScrollRef.value?.querySelector(`.lyric-line-${newIdx}`)
+activeEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+```
+
+---
+
+#### 10.4.6 系统级 Media Session 硬件外设联动
+
+全面接入 W3C `navigator.mediaSession` 标准，使网页在后台运行时，仍可被操作系统与外部硬件感知并控制：
+
+```typescript
+navigator.mediaSession.metadata = new MediaMetadata({
+  title: currentTrack.value.title,
+  artist: currentTrack.value.artist,
+  album: 'Xboard 专属音乐库',
+  artwork: [
+    { src: currentTrack.value.coverUrl, sizes: '512x512', type: 'image/jpeg' }
+  ]
+})
+
+// 硬件外设按键绑定 (耳机线控、键盘多媒体键、车载控制盘)
+navigator.mediaSession.setActionHandler('play', playMusic)
+navigator.mediaSession.setActionHandler('pause', pauseMusic)
+navigator.mediaSession.setActionHandler('previoustrack', prevTrack)
+navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack(false))
+```
+
+* **支持的宿主系统**：
+  * **iOS / iPadOS**：灵动岛微缩波形显示、锁屏全屏海报展示与控制；
+  * **Windows 10/11**：任务栏浮动多媒体框、SMTC 系统音频控制器；
+  * **macOS**：控制中心“正在播放”小组件。
+
+---
+
+#### 10.4.7 核心播放状态流转与避坑须知
+
+| 场景 / 异常分支 | 表现现象 | 底层处理机制 |
+| :--- | :--- | :--- |
+| **浏览器自动播放拦截** | 抛出 `NotAllowedError`，音频未发声 | 不覆盖页面标题，在胶囊右侧挂载 `[🎵 启播]` 呼吸微标，用户点击任意处立即通过手势上下文激活播放。 |
+| **音频流拉取死锁 / 超时** | 网络抖动，解密超过 30 秒卡住 | 内部维护 `fallbackTimer` 超时看门狗，30 秒未起播自动跳至下一首，杜绝播放器挂死。 |
+| **单曲自然播完切歌** | 当前音频播放完毕触发 `@ended` | 严格判断播放模式：`loop` 则单曲倒回 `0s` 重播；`random` 则使用随机去重抽样算法换曲；`sequential` 顺序递增。 |
+| **展开卡片周围元素下移** | 展开大岛时左右按钮被垂直顶下 | 顶栏外层采用 `items-start` 顶部基准线对齐，左右两端固定 `h-11`，大岛采用 `left: 50% + transform: translateX(-50%)`，仅沿纵向向下舒展，邻近元素固定。 |
+| **展开变形产生方角棱角** | 药丸展开为大卡片时瞬间变为直角矩形 | 全状态锁定为 `position: absolute`，圆角半径从 `22px` 连续插值至 `36px`，全程基于 `cubic-bezier(0.34, 1.56, 0.64, 1)` 弹簧阻尼变形。 |
