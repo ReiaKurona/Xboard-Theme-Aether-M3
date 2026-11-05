@@ -8,11 +8,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 class GatewayController extends Controller
 {
-    // 🌟 前后端对齐的主混淆密钥 (可与前端统一)
+    // 前后端对齐的主混淆密钥
     private const MASTER_KEY = 'xboard_aether_m3_secure_seed';
 
     /**
-     * 极速对称解密流 (RC4 算法，内存开销 0.01ms，前后端 100% 字节对齐)
+     * 极速对称解密流 (RC4 算法)
      */
     private static function rc4(string $key, string $data): string
     {
@@ -40,17 +40,14 @@ class GatewayController extends Controller
      */
     public function dispatchGateway(Request $request, string $cipher): Response
     {
-        // 1. 至少包含 8 字节的 Salt + 密文
         if (strlen($cipher) < 10 || !ctype_xdigit($cipher)) {
             abort(404);
         }
 
         try {
-            // 2. 提取 8 字符动态盐
+            // 1. 提取动态盐并解密完整路径 (包含 ?id=xx / ?language=xx 等参数)
             $salt = substr($cipher, 0, 8);
             $rawCipher = hex2bin(substr($cipher, 8));
-            
-            // 3. 解密还原原本的相对路径 (如 "user/server/fetch" 或 "user/order/detail?trade_no=123")
             $sessionKey = $salt . '_' . self::MASTER_KEY;
             $realPathWithQuery = self::rc4($sessionKey, $rawCipher);
 
@@ -58,23 +55,29 @@ class GatewayController extends Controller
                 abort(404);
             }
 
-            // 4. 解析路径与 Query 参数
-            $parsed = parse_url($realPathWithQuery);
-            $cleanPath = ltrim($parsed['path'] ?? '', '/');
-            
-            // 5. 合并并重写 Query 参数
+            // 🌟 2. 精确拆分 URI 路径与 Query 查询参数
+            $parts = explode('?', $realPathWithQuery, 2);
+            $cleanPath = trim($parts[0], '/');
+            $queryString = $parts[1] ?? '';
+
             $extraQuery = [];
-            if (!empty($parsed['query'])) {
-                parse_str($parsed['query'], $extraQuery);
+            if (!empty($queryString)) {
+                parse_str($queryString, $extraQuery);
             }
+            // 合并外部可能携带的 query 与密文内部解出来的 query
             $allQuery = array_merge($request->query->all(), $extraQuery);
 
-            // 6. 构造原生的内部对等子请求 (Sub-Request)
+            // 构造标准完整目标 URI
             $targetUri = '/api/v1/' . $cleanPath;
+            if (!empty($allQuery)) {
+                $targetUri .= '?' . http_build_query($allQuery);
+            }
+
+            // 🌟 3. 构造子请求 (确保 GET/POST 下的 input('id') 均可无损读取)
             $subRequest = Request::create(
                 $targetUri,
                 $request->getMethod(),
-                $allQuery,
+                $request->isMethod('GET') ? $allQuery : array_merge($request->all(), $allQuery),
                 $request->cookies->all(),
                 $request->files->all(),
                 array_merge($request->server->all(), [
@@ -84,14 +87,33 @@ class GatewayController extends Controller
                 $request->getContent()
             );
 
-            // 继承所有请求头（包括 Sanctum Token、MIME 等）
+            // 继承所有请求头 (Authorization, Content-Type, Accept 等)
             $subRequest->headers->replace($request->headers->all());
 
-            // 🌟 核心：在内存中直接调度 Laravel 官方路由管道执行，鉴权与业务 100% 保持原生！
-            return app('router')->dispatch($subRequest);
+            // 继承用户鉴权上下文
+            if (isset($request->user)) {
+                $subRequest->user = $request->user;
+            }
+            $subRequest->setUserResolver(fn () => $request->user());
+
+            // 🌟 核心破案点：将 subRequest 绑定到 Laravel 全局服务容器的 'request' 实例！
+            // 这样无论是 TicketController 还是 KnowledgeController，注入的 $request 都能拿到真实的 ?id=xx 参数！
+            $originalRequest = app('request');
+            app()->instance('request', $subRequest);
+
+            try {
+                return app('router')->dispatch($subRequest);
+            } finally {
+                // 执行完成后干净复原
+                app()->instance('request', $originalRequest);
+            }
 
         } catch (\Throwable $e) {
-            \Log::warning('[Gateway] 动态路径分发失败: ' . $e->getMessage());
+            \Log::warning('[Gateway] 动态路径分发异常: ' . $e->getMessage(), [
+                'cipher' => $cipher,
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             abort(404);
         }
     }
