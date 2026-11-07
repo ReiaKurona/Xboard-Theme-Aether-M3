@@ -1,6 +1,6 @@
 {
   "name": "MD3-Theme",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "author": "Reia",
   "description": "基于 Google Material Design 3 Expressive 设计语言的现代化主题",
   "configs": [
@@ -68,6 +68,20 @@
   "field_name": "custom_icon_url",
   "field_type": "input",
   "default_value": ""
-}
+},
+{
+      "label": "Mihomo/Clash 控制器预设密钥 (Secret)",
+      "placeholder": "若订阅配置了 external-controller secret，填入以实现免密连接",
+      "field_name": "clash_api_secret",
+      "field_type": "input",
+      "default_value": ""
+    },
+    {
+      "label": "Mihomo/Clash 默认控制端点",
+      "placeholder": "http://localhost:9090",
+      "field_name": "clash_api_endpoint",
+      "field_type": "input",
+      "default_value": "http://localhost:9090"
+    }
   ]
 }

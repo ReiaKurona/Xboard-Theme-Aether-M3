@@ -76,7 +76,38 @@ const routes = [
         path: 'activities',
         name: 'Activities',
         component: () => import('../views/activities/Index.vue')
+      },
+      {
+      path: 'proxies',
+      name: 'Proxies',
+      component: () => import('../views/clash/ProxiesView.vue')
+    },
+    {
+        path: 'clash/overview',
+        name: 'ClashOverview',
+        component: () => import('../views/clash/OverviewView.vue')
+      },
+      {
+        path: 'clash/connections',
+        name: 'ClashConnections',
+        component: () => import('../views/clash/ConnectionsView.vue')
+      },
+      {
+        path: 'clash/rules',
+        name: 'ClashRules',
+        component: () => import('../views/clash/RulesView.vue')
+      },
+      {
+        path: 'clash/logs',
+        name: 'ClashLogs',
+        component: () => import('../views/clash/LogsView.vue')
+      },
+      {
+        path: 'clash/settings',
+        name: 'ClashSettings',
+        component: () => import('../views/clash/SettingsView.vue')
       }
+
     ]
   }
 ]

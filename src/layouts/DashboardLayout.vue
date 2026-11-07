@@ -5,15 +5,15 @@ import { useUserStore } from '../stores/user'
 import { useConfigStore } from '../stores/config'
 import GlobalFooterInjector from '../components/common/GlobalFooterInjector.vue'
 import UserAccountPopover from '../components/common/UserAccountPopover.vue'
-import ClientDownloadModal from '../components/common/ClientDownloadModal.vue'
 import DynamicIslandMusic from '../components/common/DynamicIslandMusic.vue'
+import { useClashStore } from '../stores/clash'
+import ClashSidebarWidget from '../components/clash/ClashSidebarWidget.vue'
 
+const clashStore = useClashStore()
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const configStore = useConfigStore()
-
-
 
 const getInitialTheme = (): boolean => {
   if (typeof window === 'undefined') return false
@@ -37,7 +37,7 @@ const toggleTheme = () => {
   applyTheme(!isDark.value)
 }
 
-// 侧栏与底栏断点控制 (原样保留)
+// 侧栏与底栏断点控制
 const windowWidth = ref<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
 const isMobile = computed(() => windowWidth.value < 768)
 const isSidebarCollapsed = ref<boolean>(windowWidth.value < 1280 && windowWidth.value >= 768)
@@ -55,29 +55,92 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize)
   userStore.fetchDashboardData()
   configStore.fetchConfig()
+  // 🌟 初始化自动探测本地 Mihomo 连通态
+  clashStore.init()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
 })
 
-const navItems = computed(() => [
-  { name: '仪表盘', icon: 'dashboard', path: '/dashboard', badge: 0 },
-  { name: '购买订阅', icon: 'shopping_bag', path: '/plan', badge: 0 },
-  { name: '我的订单', icon: 'receipt_long', path: '/order', badge: userStore.userStat?.[0] || 0 },
-  { name: '节点状态', icon: 'dns', path: '/servers', badge: 0 },
-  { name: '工单客服', icon: 'support_agent', path: '/tickets', badge: userStore.userStat?.[1] || 0 },
-  { name: '邀请返利', icon: 'group_add', path: '/invite', badge: 0 }
-])
+// 气泡折叠菜单弹出状态
+const activeBubbleMenu = ref<'status_settings' | 'order_tickets' | null>(null)
 
+// 🌟 核心折叠逻辑：未启动时为原本 6 项；启动时自适应折叠为 5 个核心大项
+const dynamicNavItems = computed(() => {
+  const isMihomoActive = clashStore.isEnabled && clashStore.isConnected
+
+  if (!isMihomoActive) {
+    return [
+      { id: 'dashboard', name: '仪表盘', icon: 'dashboard', path: '/dashboard', badge: 0 },
+      { id: 'plan', name: '购买订阅', icon: 'shopping_bag', path: '/plan', badge: 0 },
+      { id: 'order', name: '我的订单', icon: 'receipt_long', path: '/order', badge: userStore.userStat?.[0] || 0 },
+      { id: 'servers', name: '节点状态', icon: 'dns', path: '/servers', badge: 0 },
+      { id: 'tickets', name: '工单客服', icon: 'support_agent', path: '/tickets', badge: userStore.userStat?.[1] || 0 },
+      { id: 'invite', name: '邀请返利', icon: 'group_add', path: '/invite', badge: 0 }
+    ]
+  }
+
+  // 🌟 启动后折叠为 5 项胶囊
+  return [
+    { id: 'dashboard', name: '仪表盘', icon: 'dashboard', path: '/dashboard', badge: 0 },
+    { id: 'proxies', name: '代理节点', icon: 'hub', path: '/proxies', badge: 0 },
+    { id: 'plan', name: '购买订阅', icon: 'shopping_bag', path: '/plan', badge: 0 },
+    {
+      id: 'status_settings',
+      name: '状态&设置',
+      icon: 'tune',
+      isFolder: true,
+      subItems: [
+        { name: '节点状态', icon: 'dns', path: '/servers' },
+        { name: '仪表概览', icon: 'grid_view', path: '/clash/overview' },
+        { name: '实时连接', icon: 'sync_alt', path: '/clash/connections' },
+        { name: '分流规则', icon: 'rule', path: '/clash/rules' },
+        { name: '实时日志', icon: 'description', path: '/clash/logs' },
+        { name: '内核后端', icon: 'settings', path: '/clash/settings' }
+      ]
+    },
+    {
+      id: 'order_tickets',
+      name: '订单客服',
+      icon: 'contact_support',
+      isFolder: true,
+      badge: (userStore.userStat?.[0] || 0) + (userStore.userStat?.[1] || 0),
+      subItems: [
+        { name: '我的订单', icon: 'receipt_long', path: '/order', badge: userStore.userStat?.[0] || 0 },
+        { name: '工单客服', icon: 'support_agent', path: '/tickets', badge: userStore.userStat?.[1] || 0 },
+        { name: '邀请返利', icon: 'group_add', path: '/invite', badge: 0 }
+      ]
+    }
+  ]
+})
+
+// 处理按钮点击：若是复合菜单则触发气泡，若是单页则跳转
+const handleNavClick = (item: any) => {
+  if (item.isFolder) {
+    activeBubbleMenu.value = activeBubbleMenu.value === item.id ? null : item.id
+  } else {
+    activeBubbleMenu.value = null
+    router.push(item.path)
+  }
+}
+
+// 🌟 修复：以 dynamicNavItems 为基准计算 activeIndex，杜绝报错
 const activeIndex = computed(() => {
   const currentPath = route.path
-  const index = navItems.value.slice(0, 5).findIndex(item => item.path === currentPath)
+  const items = dynamicNavItems.value.slice(0, 5)
+  const index = items.findIndex(item => {
+    if (item.path === currentPath) return true
+    if (item.isFolder && item.subItems) {
+      return item.subItems.some((sub: any) => sub.path === currentPath)
+    }
+    return false
+  })
   return index !== -1 ? index : 0
 })
 
 const liquidLensStyle = computed(() => {
-  const total = Math.min(navItems.value.length, 5)
+  const total = Math.min(dynamicNavItems.value.length, 5)
   const itemWidthPercent = 100 / total
   return {
     width: `${itemWidthPercent}%`,
@@ -86,7 +149,7 @@ const liquidLensStyle = computed(() => {
   }
 })
 
-// 动态顶栏名称与返回
+// 🌟 完善动态顶栏名称映射表（彻底解决顶部标题不变的问题）
 const routeTitles: Record<string, string> = {
   '/dashboard': '控制中心',
   '/plan': '购买订阅',
@@ -96,32 +159,31 @@ const routeTitles: Record<string, string> = {
   '/invite': '邀请返利',
   '/profile': '账号与安全中心',
   '/knowledge': '使用教程',
-  '/download': '软件下载中心',// 🌟 新增：下载中心独立浮岛标题
-  '/activities': '福利与活动中心' // 🌟 浮岛标题
+  '/download': '软件下载中心',
+  '/activities': '福利与活动中心',
+  '/proxies': '代理节点选择',
+  '/clash/overview': 'Mihomo 概览',
+  '/clash/connections': '实时活动连接',
+  '/clash/rules': '分流路由规则',
+  '/clash/logs': '内核调试日志',
+  '/clash/settings': '内核后端与设置'
 }
 
 const settings = (window as any).settings || {}
-// 🌟 检测是否有有效活动代码 (用于控制悬浮窗强制关闭)
 const hasActivityCode = computed(() => {
   const code = (settings.activity_custom_code || '').trim()
   return code.length > 0
 })
 
-// 🌟 悬浮窗显示条件：非首页 + 非活动页自身 + 后台开关开启 + 后台填有活动代码
 const showActivityFloatingWidget = computed(() => {
   const isHomePage = route.path === '/dashboard'
-  const isActivitiesPage = route.path === '/activities' // 🌟 排除活动页自身
+  const isActivitiesPage = route.path === '/activities'
   const isEnabled = Boolean(settings.activity_float_enabled)
   const hasCode = hasActivityCode.value
-
   return !isHomePage && !isActivitiesPage && isEnabled && hasCode
 })
 
-// 🌟 新增：点击下载按钮直接在新分页打开 SPA 软件下载中心
 const openDownloadCenter = () => {
-  const origin = window.location.origin
-  const base = (window as any).routerBase || '/'
-  // 拼接当前站点的 Hash 路由地址，在新标签页打开
   router.push('/download')
 }
 
@@ -143,12 +205,27 @@ const handleBack = () => {
     isBackNav.value = false
   }, 450)
 }
+
+const handleDocumentClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (!target.closest('.unified-adaptive-shell')) {
+    activeBubbleMenu.value = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
 </script>
 
 <template>
   <div class="min-h-screen flex bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)] transition-colors duration-300 relative overflow-x-hidden">
     
-    <!-- 🌟 图 2 同款：阶梯渐进高斯模糊 + 上层透明度渐进输出蒙版 -->
+    <!-- 顶部渐进高斯模糊 -->
     <div class="progressive-blur-container pointer-events-none fixed top-0 left-0 right-0 h-32 z-20 overflow-hidden">
       <div class="blur-sublayer blur-1"></div>
       <div class="blur-sublayer blur-2"></div>
@@ -165,12 +242,10 @@ const handleBack = () => {
         isMobile ? 'pl-0' : (isSidebarCollapsed ? 'pl-[96px]' : 'pl-[272px]')
       ]"
     >
-      <!-- 🌟 修改后：items-start 顶部对齐，中间向下展开时左右绝不下移 -->
       <div class="max-w-[1440px] w-full mx-auto px-4 md:px-8 flex items-start justify-between">
         
-        <!-- 🌟 左侧区域：锁定 h-11 并在内部垂直居中，钉在顶行 -->
+        <!-- 左侧区域：客户端下载 / 返回按钮 -->
         <div class="flex items-center min-w-[52px] h-11">
-          <!-- 首页展示：客户端下载中心 -->
           <button
             v-if="isHome"
             @click="openDownloadCenter"
@@ -184,7 +259,6 @@ const handleBack = () => {
             <span class="text-xs font-bold hidden sm:inline">下载客户端</span>
           </button>
 
-          <!-- 子页面展示：返回上一级 -->
           <button
             v-else
             @click="handleBack"
@@ -199,6 +273,7 @@ const handleBack = () => {
           </button>
         </div>
 
+        <!-- 中间：灵动岛音乐与路由标题 -->
         <div class="pointer-events-auto flex-1 flex items-start justify-center relative h-11 mx-2">
           <DynamicIslandMusic
             :current-title="currentRouteTitle"
@@ -207,7 +282,7 @@ const handleBack = () => {
           />
         </div>
 
-        <!-- 🌟 右侧区域：锁定 h-11 并在内部居中，绝对不下移 -->
+        <!-- 右侧区域：主题切换与用户头像 -->
         <div class="pointer-events-auto min-w-[52px] flex justify-end h-11 items-center">
           <div
             class="h-11 px-2.5 rounded-full flex items-center gap-2 shadow-lg transition-all"
@@ -231,7 +306,7 @@ const handleBack = () => {
       </div>
     </header>
 
-    <!-- 侧栏 (代码与动画 100% 严格保持原样) -->
+    <!-- 🌟 侧栏与底栏自适应容器 (严格修复为 dynamicNavItems) -->
     <nav
       class="unified-adaptive-shell will-change-[top,bottom,left,right,width,height,border-radius] [transform:translateZ(0)]"
       :class="[
@@ -270,59 +345,87 @@ const handleBack = () => {
         </button>
       </div>
 
-      <!-- 移动端底栏液态透镜 (原样保留) -->
+      <!-- 移动端底栏液态透镜 -->
       <div v-if="isMobile" class="liquid-lens-container">
         <div class="liquid-lens-slider" :style="liquidLensStyle">
           <div class="prism-rainbow-lens"></div>
         </div>
       </div>
 
-      <!-- 导航列表项 (原样保留) -->
+      <!-- 🌟 导航列表项：使用 dynamicNavItems 并绑定气泡展开 -->
       <div
         class="w-full h-full flex transition-all duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)] relative z-10"
         :class="isMobile ? 'flex-row items-center justify-around' : 'flex-col gap-1.5 flex-1'"
       >
-        <button
-          v-for="item in (isMobile ? navItems.slice(0, 5) : navItems)"
-          :key="item.path"
-          @click="router.push(item.path)"
-          class="nav-tab-item group relative flex items-center font-medium transition-all duration-300 active:scale-95 cursor-pointer"
-          :class="[
-            isMobile 
-              ? 'flex-col justify-center flex-1 h-full py-1 gap-0.5' 
-              : (isSidebarCollapsed ? 'justify-center h-12 px-0 rounded-full' : 'h-12 px-4 gap-4 rounded-full'),
-            route.path === item.path
-              ? (isMobile ? 'text-[var(--md-sys-color-primary)] font-bold' : 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] shadow-sm')
-              : (isDark ? 'text-white/70 hover:text-white' : 'text-slate-700 hover:text-slate-900')
-          ]"
+        <div
+          v-for="item in (isMobile ? dynamicNavItems.slice(0, 5) : dynamicNavItems)"
+          :key="item.name"
+          class="relative flex-1 md:flex-none h-full md:h-12 flex items-center justify-center"
         >
-          <span class="material-symbols-outlined shrink-0 transition-transform duration-300 group-hover:scale-110 text-2xl">
-            {{ item.icon }}
-          </span>
-
-          <span
-            v-if="!isMobile"
-            class="whitespace-nowrap tracking-wide text-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-            :class="isSidebarCollapsed ? 'opacity-0 -translate-x-3 w-0 overflow-hidden' : 'opacity-100 translate-x-0 w-auto'"
+          <button
+            @click="handleNavClick(item)"
+            class="nav-tab-item group relative flex items-center font-medium transition-all duration-300 active:scale-95 cursor-pointer w-full"
+            :class="[
+              isMobile 
+                ? 'flex-col justify-center h-full py-1 gap-0.5' 
+                : (isSidebarCollapsed ? 'justify-center h-12 px-0 rounded-full' : 'h-12 px-4 gap-4 rounded-full'),
+              (route.path === item.path || activeBubbleMenu === item.id)
+                ? (isMobile ? 'text-[var(--md-sys-color-primary)] font-bold' : 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] shadow-sm')
+                : (isDark ? 'text-white/70 hover:text-white' : 'text-slate-700 hover:text-slate-900')
+            ]"
           >
-            {{ item.name }}
-          </span>
+            <span class="material-symbols-outlined shrink-0 text-2xl">{{ item.icon }}</span>
+            <span v-if="!isMobile" class="whitespace-nowrap tracking-wide text-sm">{{ item.name }}</span>
+            <span v-if="isMobile" class="text-[10px] tracking-tight font-medium">{{ item.name }}</span>
 
-          <span v-if="isMobile" class="text-[10px] tracking-tight font-medium">
-            {{ item.name }}
-          </span>
+            <!-- 角标 -->
+            <span
+              v-if="item.badge && item.badge > 0"
+              class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold shadow-sm"
+              :class="isMobile ? 'absolute top-1 right-2' : 'ml-auto'"
+            >
+              {{ item.badge }}
+            </span>
+          </button>
 
-          <span
-            v-if="item.badge > 0"
-            class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold shadow-sm"
-            :class="isMobile ? 'absolute top-1 right-3' : (isSidebarCollapsed ? 'absolute top-2 right-2' : 'ml-auto')"
-          >
-            {{ item.badge }}
-          </span>
-        </button>
+          <!-- 🌟 手机端点击折叠项弹出的上浮气泡菜单 (Fluid Bubble Menu) -->
+<!-- 🌟 核心修复：收起侧栏时使用 fixed 绝对定位向右飞出，100% 解决裁切弹不出的问题 -->
+          <Transition name="bubble-spring">
+            <div
+              v-if="item.isFolder && activeBubbleMenu === item.id"
+              class="bubble-menu-panel p-2 rounded-[24px] bg-[var(--md-sys-color-surface-container-high)] shadow-2xl border border-black/5 dark:border-transparent flex flex-col gap-1 z-[999] backdrop-blur-2xl select-none"
+              :class="[
+                isMobile 
+                  ? 'fixed bottom-24 left-1/2 -translate-x-1/2 w-48' 
+                  : (isSidebarCollapsed ? 'fixed left-[92px] w-52' : 'absolute bottom-14 left-4 w-48')
+              ]"
+              :style="!isMobile && isSidebarCollapsed ? { top: '35%' } : {}"
+            >
+              <div class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[var(--md-sys-color-primary)] border-b border-[var(--md-sys-color-outline-variant)]/10 mb-1">
+                {{ item.name }}
+              </div>
+
+              <button
+                v-for="sub in item.subItems"
+                :key="sub.path"
+                @click="router.push(sub.path); activeBubbleMenu = null"
+                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left hover:bg-[var(--md-sys-color-primary-container)] hover:text-[var(--md-sys-color-on-primary-container)] cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-base">{{ sub.icon }}</span>
+                <span>{{ sub.name }}</span>
+                <span v-if="(sub as any).badge && (sub as any).badge > 0" class="ml-auto bg-red-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">
+                  {{ (sub as any).badge }}
+                </span>
+              </button>
+            </div>
+          </Transition>
+        </div>
       </div>
 
-      <!-- 退出登录 (原样保留) -->
+      <!-- 🌟 在退出登录上方挂载 Zashboard 侧栏监控条 (支持展开/收起双态) -->
+      <ClashSidebarWidget  v-if="!isMobile" :is-collapsed="isSidebarCollapsed" class="mb-2" />
+
+      <!-- 退出登录 -->
       <div
         v-if="!isMobile"
         class="w-full pt-4 border-t border-[var(--md-sys-color-outline-variant)]/10 shrink-0"
@@ -343,7 +446,7 @@ const handleBack = () => {
       </div>
     </nav>
 
-    <!-- 右侧主体内容容器 -->
+    <!-- 主体视口容器 -->
     <div
       class="main-content-viewport flex-1 flex flex-col min-w-0 min-h-screen transition-[padding] duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)]"
       :class="[
@@ -358,12 +461,10 @@ const handleBack = () => {
         </RouterView>
       </main>
 
-
-      
       <GlobalFooterInjector />
     </div>
-  </div>
-  <!-- 🌟 特性：非首页右下角约 1/4 处【圆形/方圆悬浮活动 FAB 按钮】 (75% 不透明度，带右上角红点，不遮挡底栏) -->
+
+    <!-- 悬浮活动 FAB 按钮 -->
     <Transition name="fade-spring">
       <button
         v-if="showActivityFloatingWidget"
@@ -372,18 +473,48 @@ const handleBack = () => {
         :class="isDark ? 'top-capsule-dark' : 'top-capsule-light'"
         title="查看进行中的福利活动"
       >
-        <!-- 内部图标 -->
         <span class="material-symbols-outlined text-2xl text-amber-500 animate-bounce">
           celebration
         </span>
-
-        <!-- 🌟 右上角未读呼吸红点角标 -->
         <span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[var(--md-sys-color-surface)] animate-pulse"></span>
       </button>
     </Transition>
+  </div>
 </template>
 
 <style scoped>
+.shell-desktop-rail .nav-tab-item {
+  justify-content: center !important;
+  padding: 0 !important;
+}
+.shell-desktop-rail .nav-tab-item span:not(.material-symbols-outlined) {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+}
+
+
+/* 🌟 气泡弹出非线性弹簧动画 */
+.bubble-spring-enter-active {
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bubble-spring-leave-active {
+  transition: all 0.2s ease-in;
+}
+.bubble-spring-enter-from {
+  opacity: 0;
+  transform: translate(-50%, 15px) scale(0.85);
+}
+.bubble-spring-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 10px) scale(0.9);
+}
+
+
+
+
 /* =========================================================
    1. 图 2 真实光学方案：5 层阶梯渐进采样模糊 + 上层透明度渐隐蒙版
    ========================================================= */
@@ -532,12 +663,13 @@ const handleBack = () => {
   transform: scale(0.85);
 }
 
+/* 🌟 核心修复 1：解除统一外壳的全局 overflow: hidden，转交由内部独立控制，让气泡彻底越狱 */
 .unified-adaptive-shell {
   position: fixed;
   z-index: 35;
   box-sizing: border-box;
   display: flex;
-  overflow: hidden;
+  /* 移除 overflow: hidden，让子元素可以自由向外浮动！ */
   transition:
     top 0.55s cubic-bezier(0.34, 1.35, 0.64, 1),
     bottom 0.55s cubic-bezier(0.34, 1.35, 0.64, 1),

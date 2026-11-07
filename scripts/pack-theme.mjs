@@ -136,6 +136,8 @@ const bladeTemplate = `<!DOCTYPE html>
       activity_float_enabled: {!! json_encode(($theme_config['activity_float_enabled'] ?? '1') === '1') !!},
       activity_custom_code: {!! json_encode($theme_config['activity_custom_code'] ?? '') !!},
       custom_icon_url: {!! json_encode($theme_config['custom_icon_url'] ?? '') !!},
+      clash_api_secret: {!! json_encode($theme_config['clash_api_secret'] ?? '') !!},
+      clash_api_endpoint: {!! json_encode($theme_config['clash_api_endpoint'] ?? 'http://localhost:9090') !!},
     };
   </script>
 
