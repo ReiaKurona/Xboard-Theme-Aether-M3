@@ -55,7 +55,7 @@ const stats = computed(() => {
 const displayGroups = computed(() => {
   const p = clashStore.proxies || {}
   // 保持原始 Object 遍历顺序 (即订阅配置文件的原始顺序)
-  let entries = Object.entries(p).filter(([, group]: [string, any]) => group.all && group.all.length > 0)
+  let entries = clashStore.orderedGroups
 
   // 1. Tab 分类过滤
   if (activeTab.value === 'selector') {

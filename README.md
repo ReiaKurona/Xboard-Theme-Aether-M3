@@ -2,6 +2,8 @@
 
 # 🌌 Xboard MD3 : Next-Gen Theme & Binary Accelerator
 
+本地版本已接入 **ReiaClash**：首页自动发现与控制台显隐、Agent 总开关与设置、每 4 小时网页订阅同步，以及客户端启动/每 12 小时后台刷新。原套餐订阅卡和多客户端导入保留。部署、手动订阅页与回归命令见 [ReiaClash 接入说明](docs/reia-integration.md)。
+
 > 基于 **Google Material Design 3** 设计语言打造的次世代网络管理面板开源主题。
 > 搭载全新 **MessagePack** 二进制化json传输加速引擎，并内嵌 E2EE 零知识资源管理中心接口与 Komari 探针无特权安全遥测系统。
 

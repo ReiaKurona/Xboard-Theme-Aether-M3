@@ -61,6 +61,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  clashStore.stop()
 })
 
 // 气泡折叠菜单弹出状态
@@ -68,7 +69,7 @@ const activeBubbleMenu = ref<'status_settings' | 'order_tickets' | null>(null)
 
 // 🌟 核心折叠逻辑：未启动时为原本 6 项；启动时自适应折叠为 5 个核心大项
 const dynamicNavItems = computed(() => {
-  const isMihomoActive = clashStore.isEnabled && clashStore.isConnected
+  const isMihomoActive = clashStore.isConnected
 
   if (!isMihomoActive) {
     return [
@@ -97,7 +98,8 @@ const dynamicNavItems = computed(() => {
         { name: '实时连接', icon: 'sync_alt', path: '/clash/connections' },
         { name: '分流规则', icon: 'rule', path: '/clash/rules' },
         { name: '实时日志', icon: 'description', path: '/clash/logs' },
-        { name: '内核后端', icon: 'settings', path: '/clash/settings' }
+        { name: '客户端设置', icon: 'settings', path: '/clash/settings' },
+        { name: '手动安装订阅', icon: 'cloud_download', path: '/clash/subscription' }
       ]
     },
     {

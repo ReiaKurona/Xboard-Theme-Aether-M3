@@ -55,7 +55,7 @@ const currentNodeDelay = computed(() => {
           :key="m.id"
           @click="clashStore.changeMode(m.id as any)"
           class="py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
-          :class="clashStore.config?.mode?.toLowerCase() === m.id
+          :class="clashStore.status?.settings.outbound_mode === m.id
             ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm'
             : 'opacity-60 hover:opacity-100'"
         >

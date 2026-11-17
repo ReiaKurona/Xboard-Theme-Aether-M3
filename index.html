@@ -95,7 +95,7 @@
         });
 
         // 移除了内部强制的 cache: 'reload'
-        sandboxFrame.srcdoc = '<!DOCTYPE html><html><head><meta name="referrer" content="no-referrer"></head><body><script>' +
+        sandboxFrame.srcdoc = '<!DOCTYPE html><html><head><meta name="referrer" content="no-referrer"></' + 'head><body><script>' +
           'fetch(' + JSON.stringify(fontUrl) + ', { referrerPolicy: "no-referrer" })' +
           '.then(function(r){ return r.arrayBuffer(); })' +
           '.then(function(buf){ window.parent.postMessage({ type: "ANON_FONT_SUCCESS", buffer: buf }, "*", [buf]); })' +

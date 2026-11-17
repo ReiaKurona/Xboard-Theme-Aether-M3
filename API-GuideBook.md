@@ -1,5 +1,7 @@
 # 📘 Xboard 客户端 API 权威开发全景手册 (V1)
 
+本地主题新增的 ReiaClash 客户端扩展不属于 XBoard 云端 API：loopback 探测、总开关、订阅推送与手动兜底见 [ReiaClash 接入说明](docs/reia-integration.md)。下文原 XBoard 接口约定保持不变。
+
 > 本文档基于 `cedar2025/Xboard` 官方核心源码（控制器、路由中间件、数据资源层与模型关系）整理。
 > 面向所有自制前端主题、客户端与移动端应用的开发者，提供目前社区最详尽、精准且包含全部边缘异常处理的官方接口级指南。
 

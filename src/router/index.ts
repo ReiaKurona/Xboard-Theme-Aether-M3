@@ -106,6 +106,11 @@ const routes = [
         path: 'clash/settings',
         name: 'ClashSettings',
         component: () => import('../views/clash/SettingsView.vue')
+      },
+      {
+        path: 'clash/subscription',
+        name: 'ReiaSubscription',
+        component: () => import('../views/clash/SubscriptionView.vue')
       }
 
     ]

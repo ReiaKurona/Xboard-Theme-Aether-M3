@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { clashApi } from '../../api/clash'
+import { useClashStore } from '../../stores/clash'
 import '@material/web/textfield/outlined-text-field.js'
 
 export interface LogItem {
@@ -18,9 +19,12 @@ const isPaused = ref(false)
 
 let seqCounter = 600
 let logWs: WebSocket | null = null
+const client = useClashStore()
 
 const startLogStream = () => {
   if (logWs) logWs.close()
+  logWs = null
+  if (!client.isConnected || !client.kernelReady) return
   try {
     logWs = clashApi.createClashWebSocket('logs', { level: logLevel.value })
     logWs.onmessage = (e) => {
@@ -79,6 +83,7 @@ const clearLogs = () => {
 }
 
 onMounted(startLogStream)
+watch(() => [client.isConnected, client.kernelReady, client.secret], startLogStream)
 onUnmounted(() => {
   if (logWs) logWs.close()
 })

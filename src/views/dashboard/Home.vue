@@ -4,6 +4,7 @@ import TrafficChart from '../../components/dashboard/TrafficChart.vue'
 import NoticeCard from '../../components/dashboard/NoticeCard.vue'
 import SubscriptionCard from '../../components/dashboard/SubscriptionCard.vue'
 import ClientConfigCard from '../../components/dashboard/ClientConfigCard.vue'
+import ReiaConsoleCard from '../../components/clash/ReiaConsoleCard.vue'
 
 // 🌟 引入拆分后的 3 个独立卡片
 import ClashTrafficCard from '../../components/clash/ClashTrafficCard.vue'
@@ -18,7 +19,7 @@ const draggedIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 
 export interface DashboardCardConfig {
-  id: 'subscription' | 'traffic' | 'client' | 'notice' | 'clash_traffic' | 'clash_mode' | 'clash_outbound'
+  id: 'subscription' | 'traffic' | 'client' | 'notice' | 'clash_traffic' | 'clash_mode' | 'clash_outbound' | 'reia_control'
   name: string
   size: '4x2' | '2x2'
   visible: boolean
@@ -26,6 +27,7 @@ export interface DashboardCardConfig {
 
 // 🌟 默认布局清单：包含拆开后的每张独立卡片
 const DEFAULT_LAYOUT: DashboardCardConfig[] = [
+  { id: 'reia_control', name: 'ReiaClash 控制台', size: '4x2', visible: true },
   { id: 'subscription', name: '套餐订阅与无头控制', size: '4x2', visible: true },
   { id: 'clash_traffic', name: 'Mihomo 实时吞吐', size: '2x2', visible: true },
   { id: 'clash_mode', name: '分流模式切换', size: '2x2', visible: true },
@@ -42,6 +44,7 @@ const loadLayout = () => {
     const raw = localStorage.getItem('xboard_dashboard_layout_v3')
     if (raw) {
       layoutCards.value = JSON.parse(raw)
+      if (!layoutCards.value.some(card => card.id === 'reia_control')) layoutCards.value.unshift({ id: 'reia_control', name: 'ReiaClash 控制台', size: '4x2', visible: true })
       return
     }
   } catch {}
@@ -87,6 +90,7 @@ onMounted(() => {
     <!-- 仪表盘控制栏 -->
     <div class="flex items-center justify-between pb-1 min-h-[36px]">
       <div>
+        <button v-if="!clashStore.isConnected" @click="clashStore.connectByUser()" class="text-xs opacity-60 hover:opacity-100 text-[var(--md-sys-color-primary)]" title="正在自动探测；浏览器需要本地网络授权时可点击连接">连接本机客户端</button>
         <span v-if="isEditMode" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-500 animate-pulse">
           自由布局编辑中
         </span>
@@ -115,7 +119,7 @@ onMounted(() => {
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 auto-rows-min w-full">
       <template v-for="(card, idx) in layoutCards" :key="card.id">
         <div
-          v-if="(card.visible || isEditMode) && (!card.id.startsWith('clash_') || clashStore.isConnected)"
+          v-if="(card.visible || isEditMode) && (!(card.id.startsWith('clash_') || card.id === 'reia_control') || clashStore.isConnected)"
           :draggable="isEditMode"
           @dragstart="onDragStart(idx)"
           @dragover.prevent="onDragOver(idx)"
@@ -148,7 +152,8 @@ onMounted(() => {
           </div>
 
           <!-- 1. 深度融合 FlClash 的我的订阅卡片 -->
-          <SubscriptionCard v-if="card.id === 'subscription'" />
+          <ReiaConsoleCard v-if="card.id === 'reia_control'" />
+          <SubscriptionCard v-else-if="card.id === 'subscription'" />
           
 
           <!-- 🌟 2. 独立卡片：Mihomo 实时吞吐 -->
