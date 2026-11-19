@@ -16,8 +16,16 @@
   --md-sys-color-outline-variant: #c3c7d0;
 }
 
+@font-face {
+  font-family: 'Aether Material Symbols';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('./assets/material-symbols-outlined.woff2') format('woff2');
+}
+
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
+  font-family: 'Material Symbols Outlined', 'Aether Material Symbols';
   font-weight: normal;
   font-style: normal;
   font-size: 20px;
@@ -29,6 +37,13 @@
   word-wrap: normal;
   direction: ltr;
   -webkit-font-smoothing: antialiased;
+}
+
+html[data-icon-font-pending] .material-symbols-outlined {
+  font-family: sans-serif;
+  visibility: hidden;
+  inline-size: 1em;
+  overflow: hidden;
 }
 
 

@@ -1,9 +1,18 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
+import { readFileSync } from 'node:fs'
 
 export default defineConfig({
   plugins: [
+    {
+      name: 'aether-icon-font-loader',
+      transformIndexHtml: {
+        order: 'post',
+        handler: html => html.replace('<!-- icon-font-loader -->', () =>
+          `<script>${readFileSync(new URL('./scripts/icon-font-loader.js', import.meta.url), 'utf8')}</script>`),
+      },
+    },
     vue({
       template: {
         compilerOptions: {

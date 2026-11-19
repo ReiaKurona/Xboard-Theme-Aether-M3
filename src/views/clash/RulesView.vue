@@ -1,147 +1,128 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { clashApi } from '../../api/clash'
+import { useClashStore } from '../../stores/clash'
+import '@material/web/button/filled-tonal-button.js'
+import '@material/web/button/text-button.js'
+import '@material/web/chips/filter-chip.js'
+import '@material/web/progress/linear-progress.js'
 import '@material/web/textfield/outlined-text-field.js'
-import '@material/web/progress/circular-progress.js'
 
-const rules = ref<any[]>([])
-const providers = ref<Record<string, any>>({})
-const loading = ref(false)
-const searchQuery = ref('')
-const activeTab = ref<'rules' | 'providers'>('rules')
+interface Rule { index?: number; type: string; payload?: string; proxy: string; extra?: { hitCount?: number; disabled?: boolean } }
+interface Provider { behavior?: string; format?: string; vehicleType?: string; ruleCount?: number; updatedAt?: string }
 
-const fetchRulesData = async () => {
-  loading.value = true
+const client = useClashStore()
+const rules = ref<Rule[]>([]), providers = ref<Record<string, Provider>>({})
+const tab = ref<'rules' | 'providers'>('rules'), search = ref(''), page = ref(1)
+const loading = ref(false), failure = ref(''), providerFailure = ref(''), message = ref('')
+let read: AbortController | undefined
+const PAGE_SIZE = 60
+
+async function refresh() {
+  if (!client.kernelReady) return
+  read?.abort()
+  const request = new AbortController()
+  read = request
+  loading.value = true; failure.value = ''; providerFailure.value = ''
+  const [ruleResult, providerResult] = await Promise.allSettled([
+    clashApi.fetchRulesAPI(request.signal), clashApi.fetchRuleProvidersAPI(request.signal),
+  ])
+  if (read !== request) return
+  if (ruleResult.status === 'fulfilled') rules.value = ruleResult.value.data.rules || []
+  else failure.value = (ruleResult.reason as Error).message
+  if (providerResult.status === 'fulfilled') providers.value = providerResult.value.data.providers || {}
+  else providerFailure.value = (providerResult.reason as Error).message
+  loading.value = false
+}
+
+watch(() => [client.kernelReady, client.secret], () => {
+  read?.abort(); read = undefined; loading.value = false
+  rules.value = []; providers.value = {}; page.value = 1; message.value = ''; failure.value = ''; providerFailure.value = ''
+  void refresh()
+}, { immediate: true })
+onUnmounted(() => { read?.abort(); read = undefined })
+
+const query = computed(() => search.value.trim().toLowerCase())
+const filteredRules = computed(() => rules.value.map((rule, position) => ({ rule, index: (rule.index ?? position) + 1 }))
+  .filter(({ rule }) => !query.value || [rule.type, rule.payload, rule.proxy].join(' ').toLowerCase().includes(query.value)))
+const filteredProviders = computed(() => Object.entries(providers.value)
+  .filter(([name, provider]) => !query.value || [name, provider.behavior, provider.format].join(' ').toLowerCase().includes(query.value)))
+const pages = computed(() => Math.max(1, Math.ceil(filteredRules.value.length / PAGE_SIZE)))
+const rows = computed(() => filteredRules.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
+watch([tab, query], () => { page.value = 1 })
+watch(pages, count => { if (page.value > count) page.value = count })
+async function update(name: string) {
+  message.value = ''; providerFailure.value = ''
   try {
-    const [ruleRes, provRes] = await Promise.all([
-      clashApi.fetchRulesAPI(),
-      clashApi.fetchRuleProvidersAPI?.().catch(() => ({ data: { providers: {} } })) || { data: { providers: {} } }
-    ])
-    rules.value = ruleRes.data.rules || []
-    providers.value = provRes.data?.providers || {}
-  } catch {}
-  finally {
-    loading.value = false
-  }
+    await client.runMutation(() => clashApi.updateRuleProvider(name))
+    message.value = `${name} 已更新`
+    await refresh()
+  } catch (cause) { providerFailure.value = (cause as Error).message }
 }
-
-const providerList = computed(() => Object.values(providers.value || {}))
-
-const filteredRules = computed(() => {
-  if (!searchQuery.value.trim()) return rules.value
-  const q = searchQuery.value.trim().toLowerCase()
-  return rules.value.filter(r => {
-    return (r.payload || '').toLowerCase().includes(q) ||
-           (r.type || '').toLowerCase().includes(q) ||
-           (r.proxy || '').toLowerCase().includes(q)
-  })
-})
-
-// 目标动作徽章配色 (REJECT, DIRECT, 节点)
-const getActionClass = (proxy: string) => {
-  const p = (proxy || '').toUpperCase()
-  if (p.includes('REJECT')) return 'bg-red-500/15 text-red-500 font-bold'
-  if (p.includes('DIRECT')) return 'bg-zinc-500/20 text-zinc-300 font-bold'
-  return 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] font-black'
-}
-
-onMounted(fetchRulesData)
 </script>
 
-<!-- eslint-disable vue/no-deprecated-slot-attribute -->
 <template>
-  <div class="flex flex-col gap-5 w-full select-none">
-    
-    <!-- 🌟 图 3 顶栏控制器：规则与提供商 Tab + 搜索框 -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-[28px] bg-[var(--md-sys-color-surface-container)] shadow-sm">
-      <div class="flex items-center gap-2">
-        <button
-          @click="activeTab = 'rules'"
-          class="px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-          :class="activeTab === 'rules'
-            ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm'
-            : 'bg-[var(--md-sys-color-surface-container-high)] opacity-70 hover:opacity-100'"
-        >
-          <span class="material-symbols-outlined text-sm">rule</span>
-          <span>规则 {{ rules.length }}</span>
-        </button>
-
-        <button
-          @click="activeTab = 'providers'"
-          class="px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-          :class="activeTab === 'providers'
-            ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm'
-            : 'bg-[var(--md-sys-color-surface-container-high)] opacity-70 hover:opacity-100'"
-        >
-          <span class="material-symbols-outlined text-sm">layers</span>
-          <span>规则提供商 {{ providerList.length }}</span>
-        </button>
+  <div class="clash-page">
+    <section class="clash-surface grid gap-4">
+      <header class="clash-toolbar justify-between">
+        <h2 class="clash-heading">路由规则</h2>
+        <md-text-button :disabled="!client.kernelReady || loading || client.operationBusy" @click="refresh">刷新列表</md-text-button>
+      </header>
+      <div class="clash-toolbar">
+        <md-filter-chip :selected="tab === 'rules'" :label="`规则 ${rules.length}`" @click.prevent="tab = 'rules'"></md-filter-chip>
+        <md-filter-chip :selected="tab === 'providers'" :label="`规则集 ${Object.keys(providers).length}`" @click.prevent="tab = 'providers'"></md-filter-chip>
+        <md-outlined-text-field label="搜索规则、规则集或目标策略" :value="search"
+          @input="search = ($event.currentTarget as HTMLInputElement).value"></md-outlined-text-field>
       </div>
-
-      <div class="w-full sm:w-64">
-        <md-outlined-text-field
-          label="搜索规则 / Payload / 目标..."
-          :value="searchQuery"
-          @input="(e: any) => searchQuery = e.target.value"
-          class="w-full"
-        >
-          <span slot="leading-icon" class="material-symbols-outlined text-sm">search</span>
-        </md-outlined-text-field>
+      <md-linear-progress v-if="loading" indeterminate aria-label="正在读取规则"></md-linear-progress>
+      <p v-if="tab === 'rules' ? failure : providerFailure" role="alert" class="clash-error text-sm">{{ tab === 'rules' ? failure : providerFailure }}</p>
+      <p v-else-if="message && tab === 'providers'" role="status" class="clash-muted text-sm">{{ message }}</p>
+    </section>
+    <section v-if="!client.kernelReady" class="clash-surface clash-empty">等待内核就绪</section>
+    <section v-else-if="tab === 'rules'" class="clash-surface">
+      <div v-if="!rows.length" class="clash-empty">{{ loading ? '正在读取规则…' : '当前筛选没有匹配的规则' }}</div>
+      <div v-else class="clash-table-scroll">
+        <table class="clash-table rules-table">
+          <thead><tr><th>序号</th><th>匹配项</th><th>目标策略</th><th class="wide-rule">命中</th></tr></thead>
+          <tbody>
+            <tr v-for="{ rule, index } in rows" :key="index">
+              <td>{{ index }}</td>
+              <td><p class="font-semibold">{{ rule.payload || '默认匹配' }}</p><p class="clash-muted text-xs">{{ rule.type }}<span v-if="rule.extra?.disabled"> · 已停用</span></p></td>
+              <td><span class="clash-pill" :data-level="rule.proxy?.startsWith('REJECT') ? 'error' : undefined">{{ rule.proxy || '—' }}</span></td>
+              <td class="wide-rule">{{ rule.extra?.hitCount ?? '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </div>
-
-    <!-- 载入状态 -->
-    <div v-if="loading" class="py-20 flex justify-center">
-      <md-circular-progress indeterminate></md-circular-progress>
-    </div>
-
-    <!-- 🌟 视图 A：图 3 同款单条规则列表 (序号、类型、Payload、REJECT 药丸) -->
-    <div v-else-if="activeTab === 'rules'" class="flex flex-col gap-2 max-h-[75vh] overflow-y-auto pr-1">
-      <div v-if="filteredRules.length === 0" class="py-16 text-center opacity-40 text-xs">
-        未找到匹配的分流规则
+      <div v-if="rows.length" class="clash-toolbar justify-end text-sm">
+        <span class="clash-muted">{{ filteredRules.length }} 条 · {{ page }} / {{ pages }}</span>
+        <md-text-button :disabled="page <= 1" @click="page--">上一页</md-text-button>
+        <md-text-button :disabled="page >= pages" @click="page++">下一页</md-text-button>
       </div>
-
-      <div
-        v-for="(r, idx) in filteredRules"
-        :key="idx"
-        class="p-4 rounded-[22px] bg-[var(--md-sys-color-surface-container)] hover:bg-[var(--md-sys-color-surface-container-high)] flex items-center justify-between gap-3 text-xs font-mono shadow-sm transition-colors"
-      >
-        <div class="flex items-center gap-3 truncate">
-          <!-- 序号 -->
-          <span class="text-[11px] opacity-40 w-6 shrink-0 text-center">{{ idx + 1 }}</span>
-
-          <div class="flex items-center gap-2 truncate">
-            <span class="opacity-50 text-[11px] shrink-0">{{ r.type }} :</span>
-            <span class="font-bold text-[var(--md-sys-color-on-surface)] truncate" :title="r.payload">
-              {{ r.payload || 'Match 默认匹配' }}
-            </span>
-          </div>
+    </section>
+    <section v-else class="grid md:grid-cols-2 gap-3 min-w-0">
+      <div v-if="!filteredProviders.length" class="clash-surface clash-empty md:col-span-2">{{ loading ? '正在读取规则集…' : '当前筛选没有匹配的规则集' }}</div>
+      <article v-for="[name, provider] in filteredProviders" :key="name" class="clash-surface grid gap-3">
+        <div class="clash-toolbar justify-between">
+          <h3 class="font-bold break-all">{{ name }}</h3>
+          <span class="clash-pill">{{ provider.ruleCount ?? '—' }} 条</span>
         </div>
-
-        <!-- 目标动作药丸徽章 (REJECT, DIRECT, 节点名称) -->
-        <span class="px-3 py-1 rounded-full text-[11px] shrink-0 uppercase tracking-wide" :class="getActionClass(r.proxy)">
-          {{ r.proxy }}
-        </span>
-      </div>
-    </div>
-
-    <!-- 视图 B：规则提供商列表 -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div
-        v-for="p in providerList"
-        :key="p.name"
-        class="p-5 rounded-[28px] bg-[var(--md-sys-color-surface-container)] flex flex-col justify-between gap-3 shadow-sm"
-      >
-        <div class="flex items-center justify-between">
-          <span class="font-black text-sm text-[var(--md-sys-color-on-surface)]">{{ p.name }}</span>
-          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]">
-            {{ p.ruleCount || p.behavior || 'RuleSet' }} 条规则
-          </span>
+        <p class="clash-muted text-sm">{{ [provider.behavior, provider.format, provider.vehicleType].filter(Boolean).join(' · ') }}</p>
+        <div class="clash-toolbar justify-between">
+          <span v-if="provider.updatedAt" class="clash-muted text-xs">{{ new Date(provider.updatedAt).toLocaleString() }}</span>
+          <md-filled-tonal-button :disabled="client.operationBusy || provider.vehicleType?.toLowerCase() === 'inline'" @click="update(name)">更新规则集</md-filled-tonal-button>
         </div>
-        <div class="text-[11px] opacity-50 font-mono truncate" :title="p.vehicleType">
-          格式: {{ p.format }} · 载具: {{ p.vehicleType }}
-        </div>
-      </div>
-    </div>
+      </article>
+    </section>
   </div>
 </template>
+
+<style scoped>
+.rules-table { table-layout: fixed; }
+.rules-table th:first-child { width: 3rem; }
+.rules-table th:nth-child(3) { width: 27%; }
+.rules-table th:last-child { width: 4rem; }
+@media (max-width: 560px) {
+  .rules-table .wide-rule { display: none; }
+}
+</style>

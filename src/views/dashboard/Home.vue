@@ -28,7 +28,7 @@ export interface DashboardCardConfig {
 // 🌟 默认布局清单：包含拆开后的每张独立卡片
 const DEFAULT_LAYOUT: DashboardCardConfig[] = [
   { id: 'reia_control', name: 'ReiaClash 控制台', size: '4x2', visible: true },
-  { id: 'subscription', name: '套餐订阅与无头控制', size: '4x2', visible: true },
+  { id: 'subscription', name: '套餐订阅', size: '4x2', visible: true },
   { id: 'clash_traffic', name: 'Mihomo 实时吞吐', size: '2x2', visible: true },
   { id: 'clash_mode', name: '分流模式切换', size: '2x2', visible: true },
   { id: 'clash_outbound', name: '当前出站节点', size: '4x2', visible: true },
@@ -44,6 +44,8 @@ const loadLayout = () => {
     const raw = localStorage.getItem('xboard_dashboard_layout_v3')
     if (raw) {
       layoutCards.value = JSON.parse(raw)
+      const subscription = layoutCards.value.find(card => card.id === 'subscription' && card.name === '套餐订阅与无头控制')
+      if (subscription) subscription.name = '套餐订阅'
       if (!layoutCards.value.some(card => card.id === 'reia_control')) layoutCards.value.unshift({ id: 'reia_control', name: 'ReiaClash 控制台', size: '4x2', visible: true })
       return
     }

@@ -10,6 +10,8 @@ async function load(file) {
   return import('data:text/javascript;base64,' + Buffer.from(outputText).toString('base64'))
 }
 const { ReiaApi } = await load('api/reia.ts')
+const { parseOutboundIp, parseCloudflareTrace, fetchOutboundIpFromBrowser } = await load('utils/geoip.ts')
+const { collectConnections, formatEndpoint } = await load('utils/clashConnections.ts')
 const { ReiaSubscriptionSync, WEB_SUBSCRIPTION_INTERVAL } = await load('utils/reiaSubscriptionSync.ts')
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status })
 globalThis.window = { location: { href: 'https://theme.example/account#/actual-route' } }
@@ -93,12 +95,40 @@ test('a rotated URL arriving during a push is pushed after the previous write co
   assert.deepEqual(pushes, ['https://subscription.example/old', 'https://subscription.example/latest'])
 })
 
-test('original subscription and other-client import cards remain byte-for-byte unchanged', () => {
-  for (const [file, hash] of [
-    ['SubscriptionCard.vue', 'F3EAB5FB4E099ED0E01DD5C24259F5D18F6AE412B57B13989CDB3BBB35527310'],
-    ['ClientConfigCard.vue', 'B8AE779E45D57D9CBB0BB09A27C34F3C3C69BDE21E46434F9E4194A26303C93F'],
-  ]) {
-    const bytes = fs.readFileSync(new URL('../src/components/dashboard/' + file, import.meta.url))
-    assert.equal(crypto.createHash('sha256').update(bytes).digest('hex').toUpperCase(), hash)
+test('other-client import card remains byte-for-byte unchanged', () => {
+  const bytes = fs.readFileSync(new URL('../src/components/dashboard/ClientConfigCard.vue', import.meta.url))
+  assert.equal(crypto.createHash('sha256').update(bytes).digest('hex').toUpperCase(), 'B8AE779E45D57D9CBB0BB09A27C34F3C3C69BDE21E46434F9E4194A26303C93F')
+})
+
+test('outbound IP parsing rejects loopback and private addresses and accepts IPv6', () => {
+  for (const ip of ['127.0.0.1', '10.0.0.8', '100.64.0.1', '::1', 'fd00::a', '2001:zzz', '']) {
+    assert.throws(() => parseOutboundIp({ ip }), /公网出口 IP/)
   }
+  assert.deepEqual(parseOutboundIp({ ip: '2606:4700::1111' }), { ip: '2606:4700::1111', countryCode: '', colo: '' })
+})
+
+test('Cloudflare Trace parses only IP, location, and data center', async () => {
+  const trace = 'h=1.1.1.1\r\nip=1.1.1.1\r\nloc=US\r\ncolo=SJC\r\nuag=ignored=value\r\n'
+  const expected = { ip: '1.1.1.1', countryCode: 'US', colo: 'SJC' }
+  assert.deepEqual(parseCloudflareTrace(trace), expected)
+  assert.throws(() => parseCloudflareTrace('<html>Blocked</html>'), /公网出口 IP/)
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'https://1.1.1.1/cdn-cgi/trace')
+    assert.equal(options.credentials, 'omit')
+    return new Response(trace)
+  }
+  try { assert.deepEqual(await fetchOutboundIpFromBrowser(new AbortController().signal), expected) }
+  finally { globalThis.fetch = original }
+})
+
+test('connection samples measure byte deltas and preserve a closed record', () => {
+  const first = collectConnections(new Map(), [{ id: 'a', upload: 200, download: 300 }], 1000)
+  const second = collectConnections(first.live, [{ id: 'a', upload: 400, download: 900 }], 2000)
+  assert.equal(second.live.get('a').upRate, 200)
+  assert.equal(second.live.get('a').downRate, 600)
+  const last = collectConnections(second.live, [], 3000)
+  assert.equal(last.closed[0].closedAt, 3000)
+  assert.equal(last.closed[0].download, 900)
+  assert.equal(formatEndpoint('2001:db8::1', '443'), '[2001:db8::1]:443')
 })

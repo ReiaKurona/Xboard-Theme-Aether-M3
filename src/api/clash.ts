@@ -4,25 +4,26 @@ import { reiaApi } from './reia'
 class ClashApiManager {
   get endpoint() { return reiaApi.coreBase }
   get secret() { return reiaApi.secret }
-  private async read<T = any>(path: string) { return { data: await reiaApi.core<T>(path) } }
+  private async read<T = any>(path: string, signal?: AbortSignal) { return { data: await reiaApi.core<T>(path, 'GET', undefined, signal) } }
   private async agent(path: string, body?: unknown, method = 'POST') { return { data: await reiaApi.agent(path, method, body) } }
-  fetchClashVersion() { return this.read<{ version: string }>('/version') }
-  fetchProxiesAPI() { return reiaApi.agent('/api/core/proxies').then(data => ({ data })) }
+  fetchClashVersion(signal?: AbortSignal) { return this.read<{ version: string }>('/version', signal) }
+  fetchProxiesAPI(signal?: AbortSignal) { return reiaApi.agent('/api/core/proxies', 'GET', undefined, signal).then(data => ({ data })) }
   selectProxyAPI(group: string, node: string) { return this.agent('/api/core/select', { group, node }) }
   fetchProxyLatencyAPI(name: string, url = 'http://www.gstatic.com/generate_204', timeout = 5000) {
     return this.read<{ delay: number }>(`/proxies/${encodeURIComponent(name)}/delay?` + new URLSearchParams({ url, timeout: String(timeout) }))
   }
   fetchProxyGroupLatencyAPI(group: string) { return this.agent('/api/core/group-delay', { group }) }
-  getConfigsAPI() { return this.read('/configs') }
+  getConfigsAPI(signal?: AbortSignal) { return this.read('/configs', signal) }
   patchConfigsAPI(config: Record<string, any>) {
     const patch: Record<string, any> = {}
     if (config.mode !== undefined) patch.outbound_mode = config.mode
     if (config['allow-lan'] !== undefined) patch.allow_lan = config['allow-lan']
     return this.agent('/api/agent/settings', patch)
   }
-  fetchRulesAPI() { return this.read('/rules') }
-  fetchRuleProvidersAPI() { return this.read('/providers/rules') }
-  fetchConnectionsAPI() { return this.agent('/api/core/connections', undefined, 'GET') }
+  fetchRulesAPI(signal?: AbortSignal) { return this.read('/rules', signal) }
+  fetchRuleProvidersAPI(signal?: AbortSignal) { return this.read('/providers/rules', signal) }
+  updateRuleProvider(name: string) { return reiaApi.core('/providers/rules/' + encodeURIComponent(name), 'PUT') }
+  fetchConnectionsAPI(signal?: AbortSignal) { return reiaApi.agent('/api/core/connections', 'GET', undefined, signal).then(data => ({ data })) }
   disconnectClashByIdAPI(id: string) { return this.agent('/api/core/connections/' + encodeURIComponent(id), undefined, 'DELETE') }
   disconnectAllClashAPI() { return this.agent('/api/core/connections', undefined, 'DELETE') }
   createClashWebSocket<T>(path: string, params?: Record<string, string>) { return reiaApi.socket('/' + path, params) }

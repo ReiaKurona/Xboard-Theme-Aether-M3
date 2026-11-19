@@ -1,40 +1,29 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useClashStore } from '../../stores/clash'
+import '@material/web/chips/filter-chip.js'
 
-const clashStore = useClashStore()
+const client = useClashStore()
+const error = ref('')
+const modes = [{ id: 'rule', label: '规则分流' }, { id: 'global', label: '全局代理' }, { id: 'direct', label: '直连' }] as const
+async function select(mode: typeof modes[number]['id']) {
+  if (!client.kernelReady || client.operationBusy || client.status?.settings.outbound_mode === mode) return
+  error.value = ''
+  try { await client.changeMode(mode) }
+  catch (cause) { error.value = (cause as Error).message }
+}
 </script>
 
 <template>
-  <div class="h-full p-5 md:p-6 rounded-[28px] bg-[var(--md-sys-color-surface-container)] border border-black/5 dark:border-transparent flex flex-col justify-between shadow-sm select-none">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-[var(--md-sys-color-primary)] text-lg">alt_route</span>
-        <span class="text-xs font-bold text-[var(--md-sys-color-primary)] uppercase tracking-wider">分流路由模式</span>
-      </div>
-      <span class="text-[10px] opacity-50 font-mono">端口: {{ clashStore.config?.['mixed-port'] || 7890 }}</span>
+  <section class="clash-surface h-full flex flex-col justify-between gap-3">
+    <div class="clash-toolbar justify-between">
+      <h3 class="clash-heading">路由模式</h3>
+      <span v-if="client.config?.['mixed-port']" class="clash-muted text-xs">混合代理 {{ client.config['mixed-port'] }}</span>
     </div>
-
-    <!-- 模式选择分段器 -->
-    <div class="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-[var(--md-sys-color-surface-container-high)] my-3">
-      <button
-        v-for="m in [
-          { id: 'rule', label: '规则分流' },
-          { id: 'global', label: '全局代理' },
-          { id: 'direct', label: '全直连' }
-        ]"
-        :key="m.id"
-        @click="clashStore.changeMode(m.id as any)"
-        class="py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
-        :class="clashStore.status?.settings.outbound_mode === m.id
-          ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm'
-          : 'opacity-60 hover:opacity-100'"
-      >
-        {{ m.label }}
-      </button>
+    <div class="clash-toolbar">
+      <md-filter-chip v-for="mode in modes" :key="mode.id" :selected="client.status?.settings.outbound_mode === mode.id"
+        :disabled="!client.kernelReady || client.operationBusy" :label="mode.label" @click.prevent="select(mode.id)"></md-filter-chip>
     </div>
-
-    <div class="text-[10px] opacity-40 border-t border-[var(--md-sys-color-outline-variant)]/10 pt-2">
-      点击即时下发 PATCH /configs 切换内核工作方式
-    </div>
-  </div>
+    <p v-if="error" role="alert" class="clash-error text-sm">{{ error }}</p>
+  </section>
 </template>

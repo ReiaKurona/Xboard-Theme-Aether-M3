@@ -2,7 +2,9 @@
 
 首页控制台现在通过本机 ReiaClash Agent（127.0.0.1:25500）识别客户端，不再探测任意 Clash 控制器。未启动时隐藏客户端卡片，启动后自动显示；暂停代理、内核尚未就绪时仍可管理。浏览器需要本地网络授权时，可点击首页“连接本机客户端”。
 
-原套餐订阅卡和多客户端导入卡保持原文件不变。购买、工单、下载、邀请、其他客户端 Scheme/二维码/复制订阅等业务未修改。已有首页自定义布局只补入 ReiaClash 控制台，不重置其他卡片。
+套餐订阅和其他客户端导入保留原业务入口。首页只在 ReiaClash 控制卡提供代理总开关和出口 IP，出口使用 Cloudflare `1.1.1.1` Trace。已有首页布局继续使用，原套餐卡现在只展示套餐与订阅操作。
+
+客户端设置、订阅、内核概览、节点、规则、连接和日志统一使用主题色板与 Material Web 控件。连接支持活动与会话内历史、速率排序、详情和断开。日志支持自动重连、级别与正则搜索、暂停显示和复制筛选结果。图标优先使用 `custom_icon_url`。CSS 外链直接加载，WOFF2 走浏览器缓存与匿名沙盒。未配置、请求失败或超时后自动使用内置字体。
 
 ## 订阅
 
@@ -30,6 +32,6 @@ node scripts/reia-browser-test.mjs
 npm run pack
 ```
 
-Windows 的 npm.ps1 被执行策略拦截时使用 npm.cmd。Chrome 可通过 CHROME_PATH 指定；受限测试宿主可临时设置 CHROME_TEST_NO_SANDBOX=1。浏览器测试只使用模拟 XBoard、Agent、内核和 WebSocket，临时 HTTP 服务仅绑定 loopback，结束后关闭。外部图标字体被测试 CSP 阻止，截图不代表生产字体效果。
+Windows 的 npm.ps1 被执行策略拦截时使用 npm.cmd。Chrome 可通过 CHROME_PATH 指定。受限测试宿主可临时设置 CHROME_TEST_NO_SANDBOX=1。浏览器测试使用模拟 XBoard、Agent、内核和 WebSocket，在桌面浅色与移动暗色下检查状态同步和本地图标。
 
-`npm run pack` 生成 MD3-Theme.zip，可上传到 XBoard 主题管理；打包会移除 dist/assets/index.html，再次浏览器检查前先 build。请同时升级支持 subscription_refresh 的 ReiaClash 四组件。当前完成本地类型/构建/模拟 DOM 与协议回归，未发布生产站点，真实订阅输出和系统权限仍需部署验证。
+`npm run pack` 生成 MD3-Theme.zip，可上传到 XBoard 主题管理。打包会移除 dist/assets/index.html，再次浏览器检查前先 build。使用握手声明 `outbound_ip_trace` 的新版 Agent，可从当前内核出站探测。旧 Agent 使用浏览器查询 Trace。真实订阅输出、系统权限与站点 CSP 仍需部署验证。

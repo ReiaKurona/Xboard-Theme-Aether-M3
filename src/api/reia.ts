@@ -1,11 +1,20 @@
 export interface ReiaSettings {
-  enabled: boolean; use_system_proxy: boolean; use_tun: boolean; tun_stack: string;
+  enabled: boolean; use_system_proxy: boolean; use_tun: boolean; tun_stack: string; tun_device?: string;
   allow_lan: boolean; geo_low_memory: boolean; autostart_enabled: boolean;
   auto_update_enabled: boolean; update_interval_hours: number; outbound_mode: 'rule' | 'global' | 'direct';
 }
 export interface ReiaStatus {
   settings: ReiaSettings; mihomo_running: boolean; real_system_proxy: boolean; real_tun: boolean;
-  is_actually_intercepting: boolean; last_error?: string;
+  is_actually_intercepting: boolean; last_error?: string; real_tun_device?: string;
+  actual_mode?: string;
+}
+export interface ReiaSystemStatus {
+  autostart_enabled: boolean;
+  core_service_supported: boolean;
+  core_service_ready: boolean;
+  core_service_delegated?: boolean;
+  core_service_error?: string;
+  core_service_registration?: { installed: boolean; running?: boolean; error?: string };
 }
 export interface SubscriptionStatus {
   has_url: boolean; refreshing: boolean; last_success_at: number; last_attempt_at: number;
@@ -65,7 +74,7 @@ export class ReiaApi {
     }
   }
   agent<T = any>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal) { return this.request<T>(this.agentBase, path, method, body, { signal }); }
-  core<T = any>(path: string, method = 'GET', body?: unknown) { return this.request<T>(this.coreBase, path, method, body, { core: true }); }
+  core<T = any>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal) { return this.request<T>(this.coreBase, path, method, body, { core: true, signal }); }
   async connect(signal?: AbortSignal) {
     const generation = ++this.generation;
     try {
@@ -88,7 +97,12 @@ export class ReiaApi {
     const url = new URL(path, this.coreBase);
     if (!path.startsWith('/') || url.origin !== this.coreBase) throw new ReiaError('无效的实时接口');
     url.protocol = 'ws:'; url.search = new URLSearchParams({ ...params, token: this.secret }).toString();
-    return new WebSocket(url.href);
+    try {
+      const LoopbackWebSocket = WebSocket as unknown as new (url: string, options: { targetAddressSpace: string }) => WebSocket;
+      return new LoopbackWebSocket(url.href, { targetAddressSpace: 'loopback' });
+    } catch {
+      return new WebSocket(url.href);
+    }
   }
 }
 export const reiaApi = new ReiaApi();

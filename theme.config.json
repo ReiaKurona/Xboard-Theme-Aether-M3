@@ -1,6 +1,6 @@
 {
   "name": "MD3-Theme",
-  "version": "1.4.7",
+  "version": "1.4.9",
   "author": "Reia",
   "description": "基于 Google Material Design 3 Expressive 设计语言的现代化主题",
   "configs": [
@@ -64,7 +64,7 @@
 },
 {
   "label": "自定义MD图标库 / 字体地址 (可选)",
-  "placeholder": "解决官方源加载慢导致图标错乱问题，留空默认走官方源。可填腾讯云OSS等woff2直链或各种开源镜像",
+  "placeholder": "优先使用此 CSS 或 WOFF2 外链，留空或加载失败时使用内置图标。",
   "field_name": "custom_icon_url",
   "field_type": "input",
   "default_value": ""
