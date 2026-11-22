@@ -3,12 +3,15 @@ export interface ReiaSettings {
   allow_lan: boolean; geo_low_memory: boolean; autostart_enabled: boolean;
   auto_update_enabled: boolean; update_interval_hours: number; outbound_mode: 'rule' | 'global' | 'direct';
 }
+export type CoreKind = "mihomo" | "meow-rs";
 export interface ReiaStatus {
+  core_kind?: CoreKind;
   settings: ReiaSettings; mihomo_running: boolean; real_system_proxy: boolean; real_tun: boolean;
   is_actually_intercepting: boolean; last_error?: string; real_tun_device?: string;
   actual_mode?: string;
 }
 export interface ReiaSystemStatus {
+  silent_proxy_on_login?: boolean;
   autostart_enabled: boolean;
   core_service_supported: boolean;
   core_service_ready: boolean;
@@ -17,6 +20,8 @@ export interface ReiaSystemStatus {
   core_service_registration?: { installed: boolean; running?: boolean; error?: string };
 }
 export interface SubscriptionStatus {
+  successful_attempt?: number;
+  auto_sync_paused?: boolean;
   has_url: boolean; refreshing: boolean; last_success_at: number; last_attempt_at: number;
   next_refresh_at: number; refresh_interval_hours: number; last_error?: string;
 }
@@ -30,6 +35,9 @@ export class ReiaApi {
   readonly coreBase = 'http://127.0.0.1:9090';
   secret = '';
   agentPID = 0;
+  private pairedURL = '';
+  private session: { features?: string[] } | undefined;
+  coreBusy = false;
   private pendingWrite = false;
   private generation = 0;
   constructor(private fetchImpl: typeof fetch = (...args) => fetch(...args)) {}
@@ -81,17 +89,20 @@ export class ReiaApi {
       const health = await this.request(this.agentBase, '/api/health', 'GET', undefined, { signal, timeout: 5000 });
       if (health?.status !== 'ok' || typeof health.agent_version !== 'string' || !Number.isInteger(health.agent_pid)) throw new ReiaError('本机接口不是 ReiaClash', 'invalid_agent');
       const page = new URL(window.location.href);
+      this.coreBusy = health.core_busy === true;
+      if (generation !== this.generation || signal?.aborted) throw new ReiaError('连接已取消', 'aborted');
+      if (this.session && this.agentPID === health.agent_pid && this.pairedURL === page.href) return this.session;
       const session = await this.request(this.agentBase, '/api/handshake', 'POST', { panel_origin: page.origin, panel_url: page.href }, { signal, timeout: 5000, handshake: true });
       if (!session?.mihomo_controller?.secret || session.mihomo_controller.api_base !== this.coreBase) throw new ReiaError('ReiaClash 握手无效', 'invalid_handshake');
       if (generation !== this.generation || signal?.aborted) throw new ReiaError('连接已取消', 'aborted');
       this.secret = session.mihomo_controller.secret; this.agentPID = health.agent_pid;
+      this.pairedURL = page.href; this.session = session;
       return session;
     } catch (error) {
-      if (generation === this.generation) { this.secret = ''; this.agentPID = 0 }
       throw error;
     }
   }
-  disconnect() { ++this.generation; this.secret = ''; this.agentPID = 0 }
+  disconnect() { ++this.generation; this.secret = ''; this.agentPID = 0; this.pairedURL = ''; this.session = undefined; this.coreBusy = false }
   socket(path: string, params: Record<string, string> = {}) {
     if (!this.secret) throw new ReiaError('ReiaClash 尚未连接', 'not_connected');
     const url = new URL(path, this.coreBase);

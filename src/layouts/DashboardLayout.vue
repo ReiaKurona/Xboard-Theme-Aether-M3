@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useConfigStore } from '../stores/config'
 import GlobalFooterInjector from '../components/common/GlobalFooterInjector.vue'
 import UserAccountPopover from '../components/common/UserAccountPopover.vue'
 import DynamicIslandMusic from '../components/common/DynamicIslandMusic.vue'
+import '@material/web/dialog/dialog.js'
 import { useClashStore } from '../stores/clash'
 import ClashSidebarWidget from '../components/clash/ClashSidebarWidget.vue'
 
@@ -14,6 +15,16 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const configStore = useConfigStore()
+
+const clientPageOffline = computed(() => clashStore.discoveryComplete && !clashStore.isConnected &&
+  (route.path === '/proxies' || route.path.startsWith('/clash/')))
+let offlineRedirect: ReturnType<typeof setTimeout> | undefined
+watch(clientPageOffline, offline => {
+  clearTimeout(offlineRedirect)
+  if (offline) offlineRedirect = setTimeout(() => {
+    if (clientPageOffline.value) void router.replace('/dashboard')
+  }, 5000)
+}, { immediate: true })
 
 const getInitialTheme = (): boolean => {
   if (typeof window === 'undefined') return false
@@ -60,6 +71,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearTimeout(offlineRedirect)
   window.removeEventListener('resize', handleResize)
   clashStore.stop()
 })
@@ -322,7 +334,7 @@ onUnmounted(() => {
       >
         <div class="flex items-center gap-3 overflow-hidden">
           <div class="w-11 h-11 shrink-0 rounded-[18px] bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] flex items-center justify-center shadow-sm">
-            <span class="material-symbols-outlined text-2xl">rocket_launch</span>
+            <img :src="configStore.siteLogo" alt="" class="size-full object-contain rounded-xl">
           </div>
           <div
             class="flex flex-col overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)]"
@@ -456,7 +468,11 @@ onUnmounted(() => {
       ]"
     >
       <main class="flex-1 max-w-[1440px] w-full mx-auto p-4 md:p-8 pt-24 md:pt-28 pb-28 md:pb-8 relative">
-        <RouterView v-slot="{ Component, route: currentRoute }">
+        <md-dialog :open="clientPageOffline" @cancel.prevent data-client-offline>
+          <span slot="headline">ReiaClash 客户端已离线</span>
+          <p slot="content">5 秒后返回首页。客户端重新连接后会保留当前页面。</p>
+        </md-dialog>
+        <RouterView v-if="!clientPageOffline" v-slot="{ Component, route: currentRoute }">
           <Transition :name="isBackNav ? 'page-slide-back' : 'page-slide-forward'" mode="out-in">
             <component :is="Component" :key="currentRoute.path" />
           </Transition>

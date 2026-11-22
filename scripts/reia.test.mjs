@@ -12,7 +12,7 @@ async function load(file) {
 const { ReiaApi } = await load('api/reia.ts')
 const { parseOutboundIp, parseCloudflareTrace, fetchOutboundIpFromBrowser } = await load('utils/geoip.ts')
 const { collectConnections, formatEndpoint } = await load('utils/clashConnections.ts')
-const { ReiaSubscriptionSync, WEB_SUBSCRIPTION_INTERVAL } = await load('utils/reiaSubscriptionSync.ts')
+const { ReiaSubscriptionSync, WEB_SUBSCRIPTION_INTERVAL, subscriptionAdvanced } = await load('utils/reiaSubscriptionSync.ts')
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status })
 globalThis.window = { location: { href: 'https://theme.example/account#/actual-route' } }
 
@@ -131,4 +131,13 @@ test('connection samples measure byte deltas and preserve a closed record', () =
   assert.equal(last.closed[0].closedAt, 3000)
   assert.equal(last.closed[0].download, 900)
   assert.equal(formatEndpoint('2001:db8::1', '443'), '[2001:db8::1]:443')
+})
+
+test('reconciles a lost subscription response against a newer successful attempt', () => {
+ const before = { last_success_at: 100, successful_attempt: 2 }
+ assert.equal(subscriptionAdvanced(before, { last_success_at:100, successful_attempt:3, refreshing:false }), true)
+ assert.equal(subscriptionAdvanced(null, { last_success_at:100, successful_attempt:3, refreshing:false }), false)
+ assert.equal(subscriptionAdvanced(before, { last_success_at:100, successful_attempt:2, refreshing:false }), false)
+ assert.equal(subscriptionAdvanced(before, { last_success_at:100, successful_attempt:3, refreshing:true }), false)
+ assert.equal(subscriptionAdvanced(before, { last_success_at:100, successful_attempt:3, refreshing:false, last_error:'retry' }), false)
 })

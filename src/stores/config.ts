@@ -27,8 +27,9 @@ export const useConfigStore = defineStore('config', () => {
   const loading = ref(false)
 
   // 站点 Logo（接口没有配置时，回退到 Blade 注入的 settings.logo）
+  const defaultLogo = `${(window as any).settings?.assets_path || '.'}/reia-clash.png`
   const siteLogo = computed(() => {
-    return config.value?.logo || (window as any).settings?.logo || null
+    return config.value?.logo || (window as any).settings?.logo || defaultLogo
   })
 
   // 站点主标题（优先 Blade 注入的 title，回退为 Xboard）

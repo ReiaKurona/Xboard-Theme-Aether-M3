@@ -64,20 +64,13 @@ const onAuthSuccess = () => {
     <div class="my-auto w-full max-w-md flex flex-col items-center">
       <!-- 🌟 核心：根据 guest/comm/config 动态渲染站点信息 -->
       <div class="text-center mb-7 flex flex-col items-center">
-        <!-- Logo 展示区：支持自定义图片或 MD3 原生图标容器 -->
+        <!-- 站点图片优先，缺省时使用 ReiaClash 图标。 -->
         <a :href="configStore.siteUrl" class="inline-block transition-transform hover:scale-105 active:scale-95 duration-200">
           <img
-            v-if="configStore.siteLogo"
             :src="configStore.siteLogo"
             :alt="configStore.siteTitle"
             class="h-16 w-auto max-w-[220px] object-contain mb-3 drop-shadow-sm"
           />
-          <div
-            v-else
-            class="w-16 h-16 rounded-[24px] bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] flex items-center justify-center mb-3 shadow-sm transition-colors"
-          >
-            <span class="material-symbols-outlined text-3xl">rocket_launch</span>
-          </div>
         </a>
 
         <!-- 站点标题 (从 settings.title 或域名读取) -->

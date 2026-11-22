@@ -16,10 +16,10 @@ const title = computed(() => {
   if (!client.kernelReady) return '等待内核就绪'
   return client.status?.is_actually_intercepting ? '代理已启用' : '代理已暂停'
 })
-const error = computed(() => client.operationError || client.lastError || client.subscriptionError || client.subscriptionStatus?.last_error)
+const error = computed(() => client.operationError || client.lastError || client.subscriptionError)
 
 function toggleProxy() {
-  void client.setEnabled(!settings.value?.enabled).catch(() => {})
+  void client.setEnabled(!client.isEnabled).catch(() => {})
 }
 
 function setPreference(key: 'use_system_proxy' | 'use_tun', value: boolean) {
@@ -31,7 +31,7 @@ function setPreference(key: 'use_system_proxy' | 'use_tun', value: boolean) {
   <section data-reia-console class="clash-surface h-full flex flex-col gap-4">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-sm font-bold">ReiaClash</p>
-      <span class="clash-pill" :data-active="client.kernelReady">{{ client.kernelReady ? (client.coreVersion ? `Mihomo ${client.coreVersion}` : '内核就绪') : '客户端已连接' }}</span>
+      <span class="clash-pill" :data-active="client.kernelReady">{{ client.kernelReady ? (client.coreVersion ? `${client.status?.core_kind === 'meow-rs' ? 'meow-rs' : 'mihomo'} ${client.coreVersion}` : '内核就绪') : '客户端已连接' }}</span>
     </header>
 
     <div class="reia-outbound">
@@ -42,11 +42,16 @@ function setPreference(key: 'use_system_proxy' | 'use_tun', value: boolean) {
         </div>
         <p class="mt-2 text-xs font-semibold">出口 IP <span v-if="client.outboundIpInfo?.countryCode">· {{ client.outboundIpInfo.countryCode }}</span></p>
         <p data-reia-outbound-ip aria-live="polite" class="reia-address mt-0.5" :class="{ 'has-address': client.outboundIpInfo }">
-          {{ client.outboundIpInfo?.ip || (client.outboundIpLoading ? '正在检测…' : '出口 IP 暂不可用') }}
+          {{ client.outboundIpInfo?.ipv6 && client.outboundIpInfo.ip === client.outboundIpInfo.ipv6
+            ? 'IPv4 未测得'
+            : client.outboundIpInfo?.ip || (client.outboundIpLoading ? '正在检测…' : '出口 IP 暂不可用') }}
+        </p>
+        <p v-if="client.outboundIpInfo?.ipv6 !== undefined" class="reia-address mt-0.5" data-reia-outbound-ipv6>
+          IPv6 · {{ client.outboundIpInfo.ipv6 || '未测得' }}
         </p>
       </div>
-      <md-filled-button data-reia-master :aria-pressed="settings?.enabled || false" :disabled="disabled" @click="toggleProxy">
-        {{ client.operationBusy ? '正在应用…' : settings?.enabled ? '暂停代理' : '启动代理' }}
+      <md-filled-button data-reia-master :aria-pressed="client.isEnabled || false" :disabled="disabled" @click="toggleProxy">
+        {{ client.operationBusy ? '正在应用…' : client.isEnabled ? '暂停代理' : '启动代理' }}
       </md-filled-button>
       <md-linear-progress v-if="client.operationBusy" indeterminate aria-label="正在应用客户端设置"></md-linear-progress>
     </div>

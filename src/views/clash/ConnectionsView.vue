@@ -44,7 +44,7 @@ function consume(frame: unknown) {
 }
 
 function destination(row: ClashConnection) {
-  return formatEndpoint(row.metadata?.host || row.metadata?.destinationIP, row.metadata?.destinationPort)
+  return formatEndpoint(row.metadata?.sniffHost || row.metadata?.host || row.metadata?.destinationIP, row.metadata?.destinationPort)
 }
 function source(row: ClashConnection) {
   return formatEndpoint(row.metadata?.sourceIP, row.metadata?.sourcePort)

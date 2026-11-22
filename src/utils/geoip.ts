@@ -1,11 +1,13 @@
 export interface OutboundGeoIp {
   ip: string
+  ipv6?: string
   countryCode: string
   colo: string
 }
 
 interface IpResponse {
   ip?: string
+  ipv6?: string
   country_code?: string
   colo?: string
   error?: boolean
@@ -16,7 +18,12 @@ export function parseOutboundIp(data: IpResponse): OutboundGeoIp {
   if (data?.error || !ip || !isPublicAddress(ip)) throw new Error('未取得公网出口 IP')
   const countryCode = data.country_code?.toUpperCase() || ''
   const colo = data.colo?.toUpperCase() || ''
-  return { ip, countryCode: /^[A-Z]{2}$/.test(countryCode) && countryCode !== 'XX' ? countryCode : '', colo: /^[A-Z]{3}$/.test(colo) ? colo : '' }
+  const info: OutboundGeoIp = { ip, countryCode: /^[A-Z]{2}$/.test(countryCode) && countryCode !== 'XX' ? countryCode : '', colo: /^[A-Z]{3}$/.test(colo) ? colo : '' }
+  if (typeof data.ipv6 === 'string') {
+    const ipv6 = data.ipv6.trim()
+    info.ipv6 = ipv6.includes(':') && isPublicAddress(ipv6) ? ipv6 : ''
+  }
+  return info
 }
 
 export function parseCloudflareTrace(trace: string): OutboundGeoIp {

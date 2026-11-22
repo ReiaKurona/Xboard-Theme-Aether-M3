@@ -14,7 +14,7 @@ function setup() {
   localStorage.setItem('auth_data', 'qa-account-only')
   const mobile = location.search.includes('mobile=1')
   if (mobile) localStorage.setItem('theme', 'dark')
-  const state = window.reiaQA = { available: false, kernel: false, enabled: false, stack: 'mips', lan: false, node: 'Node A', providerUpdated: false, calls: [], errors: [], sockets: [], holdStatus: false }
+  const state = window.reiaQA = { available: false, kernel: false, enabled: false, stack: 'mips', lan: false, node: 'Node A', providerUpdated: false, calls: [], errors: [], sockets: [], holdStatus: false, coreKind: 'mihomo', coreBusy: false }
   // Drive Vue's two-frame route transitions under Chrome virtual time.
   window.requestAnimationFrame = callback => setTimeout(() => callback(performance.now()), 16)
   window.cancelAnimationFrame = clearTimeout
@@ -38,9 +38,9 @@ function setup() {
     state.calls.push({ url: url.href, method: options.method || 'GET', body: options.body, headers: options.headers })
     if (url.port === '25500') {
       if (!state.available) throw new TypeError('QA client offline')
-      if (url.pathname === '/api/health') return json({ status: 'ok', agent_pid: 101, agent_version: 'QA' })
+      if (url.pathname === '/api/health') return json({ status: 'ok', agent_pid: 101, agent_version: 'QA', core_busy: state.coreBusy })
       if (url.pathname === '/api/handshake') return json({ features: ['outbound_ip', 'outbound_ip_trace'], mihomo_controller: { api_base: 'http://127.0.0.1:9090', secret: 'qa-secret-only' } })
-      if (url.pathname === '/api/agent/outbound-ip') return json(state.enabled ? { ip: '198.51.100.9', country_code: 'JP', colo: 'NRT' } : { ip: '127.0.0.1' })
+      if (url.pathname === '/api/agent/outbound-ip') return json(state.enabled ? { ip: '198.51.100.9', ipv6: mobile ? '' : '2606:4700::1111', country_code: 'JP', colo: 'NRT' } : { ip: '127.0.0.1' })
       if (url.pathname === '/api/agent/master') { await sleep(125); state.enabled = JSON.parse(options.body).enable; return json({ success: true }) }
       if (url.pathname === '/api/agent/settings') {
         const patch = JSON.parse(options.body)
@@ -48,12 +48,27 @@ function setup() {
         if (typeof patch.allow_lan === 'boolean') state.lan = patch.allow_lan
         return json({ success: true, settings: settings() })
       }
+      if (url.pathname === '/api/core/type' && options.method === 'POST') {
+        state.coreKind = JSON.parse(options.body).kind
+        return json({ success: true, kind: state.coreKind })
+      }
       if (url.pathname === '/api/agent/real-status') {
-        const snapshot = { mihomo_running: state.kernel, real_tun: false, real_system_proxy: state.enabled, is_actually_intercepting: state.enabled, settings: settings() }
+        const snapshot = { core_kind: state.coreKind, mihomo_running: state.kernel, real_tun: false, real_system_proxy: state.enabled, is_actually_intercepting: state.enabled, settings: settings() }
         if (state.holdStatus) { state.holdStatus = false; await sleep(685) }
         return json(snapshot)
       }
-      if (url.pathname === '/api/system/status') return json({ core_service_supported: true, core_service_registration: { installed: false }, core_service_ready: false })
+      if (url.pathname === '/api/agent/resources') return json({ entries: [{id:'country',name:'Country.mmdb',bytes:0}],
+        kinds: [], auto_update: false, interval_hours: 24, last_updated: 0 })
+      if (url.pathname === '/api/agent/directory/sizes') return json({ directories: {
+        cache: { bytes: 1048576, files: 1 }, work: { bytes: 0, files: 0 }, config: { bytes: 2048, files: 2 }
+      } })
+      if (url.pathname === '/api/system/status') return json({ core_service_supported: true, core_service_registration: { installed: false }, core_service_ready: false,
+        autostart_enabled: !!state.autostart, silent_proxy_on_login: !!state.silentProxy })
+      if (url.pathname === '/api/system/autostart/proxy' && options.method === 'POST') {
+        state.silentProxy = JSON.parse(options.body).enable
+        if (state.silentProxy) state.autostart = true
+        return json({ success: true })
+      }
       if (url.pathname === '/api/subscription/status') return json({ has_url: true, refreshing: false, last_success_at: 1700000000, refresh_interval_hours: 12 })
       if (url.pathname === '/api/core/proxies') return json({ proxies: { 'QA Plan': { type: 'Selector', all: ['Node A', 'Node B'], now: state.node }, 'Node A': { type: 'Direct' } }, group_order: ['QA Plan'] })
       if (url.pathname === '/api/core/select') { state.node = JSON.parse(options.body).node; return json({ success: true }) }
@@ -101,7 +116,7 @@ function setup() {
     assert(JSON.parse(pairing.body).panel_url === location.href, 'real obfuscated theme URL was not paired')
     assert(state.calls.some(call => call.url.endsWith('/api/subscription/url') && JSON.parse(call.body).url === 'https://subscription.example/qa'), 'automatic subscription push missing')
     state.kernel = true
-    await until(() => document.querySelector('[data-reia-proxy-status]').textContent.includes('代理已暂停'), 'ready state waited for slow secondary reads', 1500)
+    await until(() => document.querySelector('[data-reia-proxy-status]').textContent.includes('代理已暂停'), 'ready state waited for slow secondary reads', 6000)
     const app = document.querySelector('#app').__vue_app__.config.globalProperties
     state.holdStatus = true
     void app.$pinia._s.get('clash').refreshState()
@@ -112,15 +127,20 @@ function setup() {
     assert(state.calls.filter(call => call.url.endsWith('/api/agent/master')).length === 1, 'master sent overlapping writes')
     assert(state.calls.some(call => call.url.endsWith('/api/agent/master') && JSON.parse(call.body).enable), 'homepage switch bypassed Agent master API')
     assert(document.querySelector('[data-reia-outbound-ip]').textContent.includes('198.51.100.9'), 'outbound IP was not refreshed after starting the proxy')
+    assert(document.querySelector('[data-reia-outbound-ipv6]')?.textContent.includes(location.search.includes('mobile=1') ? '未测得' : '2606:4700::1111'), 'IPv6 result was not reported separately')
     assert(document.querySelector('[data-reia-proxy-status]').textContent.includes('代理已启用'), 'stale read overwrote the confirmed master state')
     assert(!state.calls.some(call => new URL(call.url).port === '9090' && call.method !== 'GET'), 'managed setting was written directly to core')
     state.available = false
-    await sleep(5500)
+    const clash = app.$pinia._s.get('clash')
+    await clash.checkConnection()
+    assert(document.querySelector('[data-reia-console]'), 'transient probe failure caused a disconnect')
+    await clash.checkConnection()
+    await clash.checkConnection()
+    await sleep(100)
     assert(!document.querySelector('[data-reia-console]'), 'disconnected client card remained visible')
     assert(document.body.textContent.includes('快速接入节点') && document.body.textContent.includes('QA Plan'), 'disconnect removed other cards')
     state.available = true; state.kernel = false
-    await sleep(5500)
-    assert(document.querySelector('[data-reia-console]'), 'Agent with unavailable kernel was hidden')
+    await until(() => document.querySelector('[data-reia-console]'), 'Agent with unavailable kernel was hidden', 7500)
     const router = app.$router
     router.onError(error => state.errors.push(String(error.stack || error)))
     const manual = [...document.querySelectorAll('[data-reia-console] md-text-button')].find(el => el.textContent.includes('订阅同步'))
@@ -128,6 +148,8 @@ function setup() {
     for (let attempt = 0; attempt < 80 && !document.querySelector('#reia-subscription-url'); attempt++) await sleep(100)
     const input = document.querySelector('#reia-subscription-url')
     assert(input, 'manual subscription fallback page missing; route=' + router.currentRoute.value.fullPath)
+    const source = document.querySelector('[data-reia-subscription-source]')
+    assert(source?.href === 'http://127.0.0.1:25500/subscription/source' && source.target === '_blank' && source.rel.includes('noopener'), 'subscription source must open in a local tab')
     input.value = 'https://subscription.example/manual'
     input.dispatchEvent(new Event('input', { bubbles: true }))
     input.closest('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
@@ -136,6 +158,15 @@ function setup() {
     state.kernel = true
     await router.push({ name: 'ClashSettings' })
     await until(() => document.querySelector('[data-reia-settings-state]')?.textContent.includes('内核就绪'), 'settings did not follow kernel readiness')
+    const silentProxy = await until(() => {
+      const control = document.querySelector('md-switch[aria-label="开启时静默启动代理"], md-switch[data-aria-label="开启时静默启动代理"]')
+      return control && !control.disabled && control
+    }, 'silent proxy could not be selected before login startup was registered')
+    const loginStart = document.querySelector('md-switch[aria-label="登录时启动客户端"], md-switch[data-aria-label="登录时启动客户端"]')
+    assert(loginStart && !loginStart.selected, 'login startup must initially be off')
+    silentProxy.selected = true
+    silentProxy.dispatchEvent(new Event('change'))
+    await until(() => silentProxy.selected && loginStart.selected, 'silent proxy did not register and update login startup')
     const lan = document.querySelector('md-switch[data-aria-label="允许局域网连接"], md-switch[aria-label="允许局域网连接"]')
     lan.selected = true
     lan.dispatchEvent(new Event('change'))
@@ -144,14 +175,43 @@ function setup() {
     stack.value = 'gvisor'
     stack.dispatchEvent(new Event('change'))
     await until(() => state.stack === 'gvisor' && stack.value === 'gvisor', 'settings select did not reflect the acknowledged write')
+    const core = [...document.querySelectorAll('md-outlined-select')].find(select => select.label === '内核类型')
+    const chooseCore = kind => { core.value = kind; core.dispatchEvent(new Event('change')) }
+    chooseCore('meow-rs')
+    await until(() => core.value === 'meow-rs' && stack.disabled, 'meow-rs selection did not update the native settings page')
+    chooseCore('mihomo')
+    await until(() => core.value === 'mihomo' && !stack.disabled, 'mihomo switch-back did not restore controls')
+    const silent = [...document.querySelectorAll('md-filled-tonal-button')].find(button => button.textContent.includes('静默更新'))
+    silent.click()
+    await until(() => state.calls.some(call => call.url.endsWith('/api/agent/upgrade') && JSON.parse(call.body).is_silent), 'silent upgrade did not use the Agent')
+    await until(() => !clash.operationBusy, 'local mutation never completed')
+    await clash.checkConnection()
+    const handshakeCount = state.calls.filter(call => call.url.endsWith('/api/handshake')).length
+    const statusCount = state.calls.filter(call => call.url.endsWith('/api/agent/real-status')).length
+    state.coreBusy = true
+    await clash.checkConnection()
+    assert(clash.operationBusy, 'backend operation lock was ignored')
+    assert(state.calls.filter(call => call.url.endsWith('/api/handshake')).length === handshakeCount, 'healthy probe repeated pairing')
+    assert(state.calls.filter(call => call.url.endsWith('/api/agent/real-status')).length === statusCount, 'busy backend still received status requests')
+    state.coreBusy = false
+    await clash.checkConnection()
     const settingsPage = document.querySelector('.clash-page')
     assert(settingsPage.scrollWidth <= settingsPage.clientWidth + 1, 'settings overflowed horizontally')
 
+    await router.push({ name: 'ReiaStorage' })
+    await until(() => document.querySelector('.clash-page')?.textContent.includes('1 MiB'), 'storage sizes were not shown')
+    const openDirectories = [...document.querySelectorAll('.clash-page md-text-button')].filter(el => el.textContent.includes('打开目录'))
+    openDirectories[1].click()
+    await until(() => state.calls.some(call => call.url.endsWith('/api/agent/directory/open') && JSON.parse(call.body).directory === 'work'), 'work directory open did not reach the Agent')
+
+    await router.push({ name: 'ReiaResources' })
+    await until(() => document.querySelector('.clash-page')?.textContent.includes('Country.mmdb'), 'resource page did not load')
     await router.push({ name: 'ClashConnections' })
     const socket = await until(() => state.sockets.find(ws => ws.path === '/connections' && ws.readyState === 1), 'live connections did not subscribe')
-    const row = { id: 'qa-connection', download: 5120, upload: 512, start: '2026-01-01T00:00:00Z', metadata: { host: 'long-subdomain.connection.example', sourceIP: '2001:db8::1', sourcePort: '52312', destinationIP: '192.0.2.5', destinationPort: '443', network: 'tcp', process: 'QA browser' }, rule: 'DOMAIN', chains: ['QA node'] }
+    const row = { id: 'qa-connection', download: 5120, upload: 512, start: '2026-01-01T00:00:00Z', metadata: { sniffHost: 'long-subdomain.connection.example', sourceIP: '2001:db8::1', sourcePort: '52312', destinationIP: '192.0.2.5', destinationPort: '443', network: 'tcp', process: 'QA browser' }, rule: 'DOMAIN', chains: ['QA node'] }
     socket.emit({ connections: [row], downloadTotal: 5120, uploadTotal: 512 })
     const destination = await until(() => document.querySelector('.connection-link'), 'live connection row missing')
+    assert(destination.textContent.includes(row.metadata.sniffHost), 'sniffed destination was hidden by the destination IP')
     const connectionsPage = document.querySelector('[data-clash-connections]')
     assert(connectionsPage.scrollWidth <= connectionsPage.clientWidth + 1, 'connections overflowed horizontally')
     destination.click()
@@ -183,6 +243,12 @@ function setup() {
     const nodeButton = [...group.querySelectorAll('.proxy-name')].find(button => button.textContent === 'Node B')
     nodeButton.click()
     await until(() => nodeButton.getAttribute('aria-pressed') === 'true', 'node selection did not update')
+    state.available = false
+    await clash.checkConnection()
+    await clash.checkConnection()
+    await clash.checkConnection()
+    await until(() => document.querySelector('[data-client-offline]')?.hasAttribute('open'), 'offline dialog missing')
+    await until(() => router.currentRoute.value.path === '/dashboard', 'offline client page did not return home', 6500)
     assert(!state.errors.length, 'runtime error: ' + state.errors.join('; '))
     document.body.dataset.reiaTest = 'passed'
   }
@@ -363,9 +429,9 @@ async function checkFontCases() {
   }
 }
 try {
-  const dom = await browser(['--virtual-time-budget=35000', '--dump-dom', base], 'integration')
+  const dom = await browser(['--virtual-time-budget=45000', '--dump-dom', base], 'integration')
   if (!dom.includes('data-reia-test="passed"')) throw new Error(dom.match(/<pre id="reia-qa-error">([\s\S]*?)<\/pre>/)?.[1] || 'Chrome did not complete theme QA; inspect .build/reia-theme-qa')
-  const mobile = await browser(['--window-size=420,890', '--virtual-time-budget=35000', '--dump-dom', base + '/?mobile=1'], 'mobile')
+  const mobile = await browser(['--window-size=420,890', '--virtual-time-budget=45000', '--dump-dom', base + '/?mobile=1'], 'mobile')
   if (!mobile.includes('data-reia-test="passed"')) throw new Error(mobile.match(/<pre id="reia-qa-error">([\s\S]*?)<\/pre>/)?.[1] || 'Chrome did not complete mobile theme QA')
   await browser(['--virtual-time-budget=2500', '--screenshot=' + path.join(output, 'dashboard.png'), base + '/?preview=1'], 'preview')
   await browser(['--window-size=420,890', '--virtual-time-budget=2500', '--screenshot=' + path.join(output, 'dashboard-mobile.png'), base + '/?mobile=1&preview=1'], 'preview-mobile')

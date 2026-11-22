@@ -8,6 +8,7 @@ import '@material/web/dialog/dialog.js'
 import '@material/web/progress/linear-progress.js'
 import '@material/web/textfield/outlined-text-field.js'
 import { useClashStore } from '../../stores/clash'
+import { reiaApi } from '../../api/reia'
 import { clashApi } from '../../api/clash'
 import ClashSelect from './ClashSelect.vue'
 import ClashSettingSwitch from './ClashSettingSwitch.vue'
@@ -24,8 +25,15 @@ watch(() => settings.value?.tun_device, value => { tunDevice.value = value || ''
 watch(() => settings.value?.update_interval_hours, value => { interval.value = value ? String(value) : '' }, { immediate: true })
 const intervalValid = computed(() => /^\d+$/.test(interval.value) && Number(interval.value) >= 1 && Number(interval.value) <= 168)
 const message = ref(''), error = ref('')
+async function checkUpdate() {
+  await operation(async () => {
+    const release = await client.runMutation(() => reiaApi.agent<{ tag: string }>('/api/agent/check-update'))
+    message.value = `最新发行版 ${release.tag}`
+  }, '')
+}
 const dnsDomain = ref(''), dnsType = ref('A'), dnsResult = ref(''), dnsError = ref(''), dnsBusy = ref(false)
 const removeDialog = ref<(HTMLElement & { show(): Promise<void>; close(): Promise<void> }) | null>(null)
+const coreKinds = ['mihomo', 'meow-rs'].map(value => ({ value, label: value }))
 const stacks = ['mips', 'mixed', 'gvisor', 'system'].map(value => ({ value, label: value }))
 const dnsTypes = ['A', 'AAAA', 'CNAME', 'HTTPS', 'TXT'].map(value => ({ value, label: value }))
 const networkOptions = [
@@ -36,10 +44,7 @@ const networkOptions = [
 const maintenance = [
   { label: '重启内核', path: '/api/core/restart' },
   { label: '更新内核', path: '/api/agent/upgrade', body: { is_silent: false } },
-  { label: '清理客户端缓存', path: '/api/agent/cache/clear' },
-  { label: '清空客户端日志', path: '/api/agent/logs/clear' },
-  { label: '打开缓存目录', path: '/api/agent/directory/open', body: { directory: 'cache' } },
-  { label: '打开配置目录', path: '/api/agent/directory/open', body: { directory: 'config' } },
+  { label: '静默更新', path: '/api/agent/upgrade', body: { is_silent: true } },
 ]
 const ports = computed(() => [
   { label: '混合代理', value: client.config?.['mixed-port'] },
@@ -52,7 +57,7 @@ const ports = computed(() => [
 const inputValue = (event: Event) => (event.currentTarget as HTMLInputElement).value
 async function operation(task: () => Promise<unknown>, success = '设置已应用') {
   message.value = ''; error.value = ''
-  try { await task(); message.value = success }
+  try { await task(); if (success) message.value = success }
   catch (cause) { error.value = (cause as Error).message }
 }
 function run(path: string, body?: unknown, success?: string) {
@@ -84,6 +89,8 @@ function flush(fakeIP = false) {
       </div>
       <div class="clash-toolbar">
         <md-filled-tonal-button v-if="!client.isConnected" :disabled="client.isProbing" @click="client.connectByUser()">连接本机客户端</md-filled-tonal-button>
+        <RouterLink :to="{ name: 'ReiaResources' }" custom v-slot="{ href, navigate }"><md-text-button :href="href" @click="navigate">外部资源管理</md-text-button></RouterLink>
+        <RouterLink :to="{ name: 'ReiaStorage' }" custom v-slot="{ href, navigate }"><md-text-button :href="href" @click="navigate">存储与目录</md-text-button></RouterLink>
         <RouterLink :to="{ name: 'ReiaSubscription' }" custom v-slot="{ href, navigate }"><md-text-button :href="href" @click="navigate">订阅同步</md-text-button></RouterLink>
       </div>
       <md-linear-progress v-if="client.operationBusy" indeterminate aria-label="正在应用客户端设置"></md-linear-progress>
@@ -93,12 +100,12 @@ function flush(fakeIP = false) {
 
     <section class="clash-surface grid gap-3" aria-labelledby="reia-network-heading">
       <h2 id="reia-network-heading" class="clash-heading">代理与网络</h2>
-      <ClashSettingSwitch label="接管流量" :selected="!!settings?.enabled" :disabled="settingsDisabled"
+      <ClashSettingSwitch label="接管流量" :selected="client.isEnabled" :disabled="settingsDisabled"
         @change="run('/api/agent/master', { enable: $event })" />
       <ClashSettingSwitch v-for="item in networkOptions" :key="item.key" :label="item.label" :description="item.description"
         :selected="!!settings?.[item.key]" :disabled="settingsDisabled" @change="setting(item.key, $event)" />
       <div class="clash-inline-control">
-        <ClashSelect label="TUN 协议栈" :model-value="settings?.tun_stack || ''" :options="stacks" :disabled="settingsDisabled"
+        <ClashSelect label="TUN 协议栈" :model-value="settings?.tun_stack || ''" :options="stacks" :disabled="settingsDisabled || client.status?.core_kind === 'meow-rs'"
           @update:model-value="setting('tun_stack', $event)" />
         <template v-if="settings?.tun_device !== undefined">
           <md-outlined-text-field label="TUN 网卡名" placeholder="留空自动选择" maxlength="15" :value="tunDevice"
@@ -132,6 +139,9 @@ function flush(fakeIP = false) {
       </div>
       <ClashSettingSwitch label="登录时启动客户端" :selected="!!client.systemStatus?.autostart_enabled"
         :disabled="unavailable || !client.systemStatus" @change="run('/api/system/autostart', { enable: $event })" />
+      <ClashSettingSwitch label="开启时静默启动代理" description="开启后将同时注册登录启动项。TUN 所需授权仍由系统确认。"
+        :selected="!!client.systemStatus?.silent_proxy_on_login" :disabled="unavailable || !client.systemStatus"
+        @change="run('/api/system/autostart/proxy', { enable: $event })" />
       <md-dialog ref="removeDialog">
         <span slot="headline">卸载内核服务</span>
         <p slot="content">卸载会关闭 TUN 并切换到普通模式。</p>
@@ -144,6 +154,9 @@ function flush(fakeIP = false) {
 
     <section class="clash-surface grid gap-3" aria-labelledby="reia-maintenance-heading">
       <h2 id="reia-maintenance-heading" class="clash-heading">内核维护</h2>
+      <ClashSelect label="内核类型" :model-value="client.status?.core_kind || 'mihomo'" :options="coreKinds"
+        :disabled="unavailable || !client.status?.core_kind || (!client.kernelReady && client.status.core_kind === 'mihomo')"
+        @update:model-value="run('/api/core/type', { kind: $event }, `已启动 ${$event}`)" />
       <ClashSettingSwitch label="Geo 低内存模式" description="更改后会重新启动内核" :selected="!!settings?.geo_low_memory"
         :disabled="settingsDisabled" @change="run('/api/agent/geo-low-memory', { enable: $event })" />
       <ClashSettingSwitch label="自动检查内核更新" :selected="!!settings?.auto_update_enabled"
@@ -155,8 +168,9 @@ function flush(fakeIP = false) {
           @click="setting('update_interval_hours', Number(interval))">保存间隔</md-filled-tonal-button>
       </div>
       <div class="clash-toolbar">
+        <md-text-button :disabled="unavailable" @click="checkUpdate()">检查更新</md-text-button>
         <md-filled-tonal-button v-for="item in maintenance" :key="item.label" :disabled="unavailable"
-          @click="run(item.path, item.body, item.path === '/api/core/restart' ? '已请求重启内核' : '操作已完成')">{{ item.label }}</md-filled-tonal-button>
+          @click="run(item.path, item.body, item.path === '/api/core/restart' ? '已请求重启内核' : item.path === '/api/agent/upgrade' ? (item.body && 'is_silent' in item.body && item.body.is_silent ? '已检查静默更新，待应用的更新会在暂停或重启时安装' : '内核已校验并启动') : '操作已完成')">{{ item.label }}</md-filled-tonal-button>
       </div>
     </section>
 

@@ -1,6 +1,6 @@
 export interface ClashConnection {
   id: string
-  metadata?: { host?: string; destinationIP?: string; destinationPort?: string; sourceIP?: string; sourcePort?: string; network?: string; type?: string; process?: string; processPath?: string }
+  metadata?: { host?: string; sniffHost?: string; destinationIP?: string; destinationPort?: string; sourceIP?: string; sourcePort?: string; network?: string; type?: string; process?: string; processPath?: string }
   upload: number
   download: number
   start: string

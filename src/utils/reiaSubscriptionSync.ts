@@ -31,6 +31,7 @@ export class ReiaSubscriptionSync {
       this.owner = owner; this.lastURL = url; this.lastSuccess = (this.options.now || Date.now)(); this.retryAt = 0
       this.options.error('')
     } catch {
+      if (generation !== this.generation || owner !== this.options.auth()) return
       this.owner = owner; this.retryAt = (this.options.now || Date.now)() + 60000
       this.options.error('订阅同步暂未完成，稍后自动重试，也可手动安装订阅')
     } finally {
@@ -38,4 +39,12 @@ export class ReiaSubscriptionSync {
       if (this.pendingForce) { this.pendingForce = false; void this.tick(true) }
     }
   }
+}
+
+
+export function subscriptionAdvanced(before: { last_success_at: number; successful_attempt?: number } | null,
+  after: { last_success_at: number; successful_attempt?: number; last_error?: string; refreshing: boolean } | null) {
+  return !!before && !!after?.last_success_at && !after.refreshing && !after.last_error &&
+    ((after.successful_attempt ?? 0) > (before.successful_attempt ?? 0) ||
+      after.last_success_at > before.last_success_at)
 }

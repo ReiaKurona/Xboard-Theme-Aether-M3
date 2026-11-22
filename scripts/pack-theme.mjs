@@ -36,6 +36,7 @@ const bladeTemplate = `<!DOCTYPE html>
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>{{$title}}</title>
+  <link rel="icon" href="/theme/{{$theme}}/assets/favicon.ico" type="image/x-icon">
   
   @php
     try {
@@ -45,11 +46,6 @@ const bladeTemplate = `<!DOCTYPE html>
           @copy($swSrc, $swDst);
       }
       
-      $favSrc = public_path('theme/' . ($theme ?? 'MD3-Theme') . '/assets/favicon.svg');
-      $favDst = public_path('favicon.ico');
-      if (file_exists($favSrc) && !file_exists($favDst)) {
-          @copy($favSrc, $favDst);
-      }
     } catch (\\Throwable $e) {}
   @endphp
 

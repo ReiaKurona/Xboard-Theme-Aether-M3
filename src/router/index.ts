@@ -108,6 +108,16 @@ const routes = [
         component: () => import('../views/clash/SettingsView.vue')
       },
       {
+        path: 'clash/settings/resources',
+        name: 'ReiaResources',
+        component: () => import('../views/clash/ResourcesView.vue')
+      },
+      {
+        path: 'clash/settings/storage',
+        name: 'ReiaStorage',
+        component: () => import('../views/clash/StorageView.vue')
+      },
+      {
         path: 'clash/subscription',
         name: 'ReiaSubscription',
         component: () => import('../views/clash/SubscriptionView.vue')
